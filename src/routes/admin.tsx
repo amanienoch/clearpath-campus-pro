@@ -260,31 +260,33 @@ function UsersTab({ users }: { users: User[] }) {
         <Button onClick={startNew} className="gradient-bg text-primary-foreground"><Plus className="size-4 mr-1" /> New user</Button>
       </div>
       <div className="glass-strong rounded-2xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/40 text-left">
-            <tr>
-              <th className="px-4 py-3 font-medium">Name</th>
-              <th className="px-4 py-3 font-medium">Email</th>
-              <th className="px-4 py-3 font-medium">Role</th>
-              <th className="px-4 py-3 font-medium">Department</th>
-              <th className="px-4 py-3 font-medium text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => (
-              <tr key={u.id} className="border-t hover:bg-muted/30">
-                <td className="px-4 py-3 font-medium">{u.name}</td>
-                <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
-                <td className="px-4 py-3 capitalize">{u.role}</td>
-                <td className="px-4 py-3 text-muted-foreground">{u.department ?? "—"}</td>
-                <td className="px-4 py-3 text-right">
-                  <Button size="sm" variant="ghost" onClick={() => startEdit(u)}><Pencil className="size-3.5" /></Button>
-                  <Button size="sm" variant="ghost" onClick={() => del(u)}><Trash2 className="size-3.5 text-destructive" /></Button>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40 text-left">
+              <tr>
+                <th className="px-4 py-3 font-medium">Name</th>
+                <th className="px-4 py-3 font-medium">Email</th>
+                <th className="px-4 py-3 font-medium">Role</th>
+                <th className="px-4 py-3 font-medium">Department</th>
+                <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.id} className="border-t hover:bg-muted/30">
+                  <td className="px-4 py-3 font-medium whitespace-nowrap">{u.name}</td>
+                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{u.email}</td>
+                  <td className="px-4 py-3 capitalize">{u.role}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{u.department ?? "—"}</td>
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                    <Button size="sm" variant="ghost" onClick={() => startEdit(u)} aria-label={`Edit ${u.name}`}><Pencil className="size-3.5" /></Button>
+                    <Button size="sm" variant="ghost" onClick={() => del(u)} aria-label={`Delete ${u.name}`}><Trash2 className="size-3.5 text-destructive" /></Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
       <UserDialog open={open} onClose={() => setOpen(false)} user={edit} />
     </div>
