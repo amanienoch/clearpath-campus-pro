@@ -143,6 +143,13 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
 
 function ReviewModal({ req, dept, onClose, reviewer }: { req: ClearanceRequest | null; dept?: Department; onClose: () => void; reviewer: string }) {
   const [remarks, setRemarks] = useState("");
+  const [busy, setBusy] = useState<"approved" | "rejected" | null>(null);
+  useEffect(() => {
+    if (req && dept) {
+      const mine = req.departments.find((d) => d.department === dept);
+      setRemarks(mine?.remarks ?? "");
+    }
+  }, [req, dept]);
   if (!req || !dept) return null;
   const mine = req.departments.find((d) => d.department === dept)!;
 
@@ -150,10 +157,16 @@ function ReviewModal({ req, dept, onClose, reviewer }: { req: ClearanceRequest |
     if (status === "rejected" && remarks.trim().length < 3) {
       return toast.error("Please add remarks before rejecting.");
     }
-    store.reviewDepartment(req.id, dept, status, remarks || (status === "approved" ? "Cleared." : ""), reviewer);
-    toast.success(`Request ${status}`);
-    setRemarks("");
-    onClose();
+    if (remarks.length > 500) return toast.error("Remarks too long (max 500 characters)");
+    setBusy(status);
+    try {
+      store.reviewDepartment(req.id, dept, status, remarks.trim() || (status === "approved" ? "Cleared." : ""), reviewer);
+      toast.success(`Request ${status}`);
+      setRemarks("");
+      onClose();
+    } finally {
+      setBusy(null);
+    }
   };
 
   return (
