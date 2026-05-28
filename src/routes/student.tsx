@@ -29,6 +29,8 @@ function StudentPage() {
     [all, user],
   );
   const active = myRequests[0];
+  const latestApproved = useMemo(() => myRequests.find((r) => r.overallStatus === "approved"), [myRequests]);
+  const hasPending = myRequests.some((r) => r.overallStatus === "pending");
   const [tab, setTab] = useState("overview");
 
   return (
