@@ -20,8 +20,16 @@ export const Route = createFileRoute("/student")({
 function StudentPage() {
   const user = useAuthUser();
   const all = useStore((s) => s.requests);
-  const myRequests = useMemo(() => all.filter((r) => r.studentId === user?.id), [all, user]);
+  const myRequests = useMemo(
+    () =>
+      all
+        .filter((r) => r.studentId === user?.id)
+        .slice()
+        .sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1)),
+    [all, user],
+  );
   const active = myRequests[0];
+  const [tab, setTab] = useState("overview");
 
   return (
     <AppShell
@@ -33,7 +41,7 @@ function StudentPage() {
     >
       <div className="space-y-8">
         <Hero user={user?.name ?? "Student"} active={active} />
-        <Tabs defaultValue="overview">
+        <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="glass rounded-xl p-1">
             <TabsTrigger value="overview" className="rounded-lg">Overview</TabsTrigger>
             <TabsTrigger value="submit" className="rounded-lg">New Request</TabsTrigger>
@@ -46,7 +54,7 @@ function StudentPage() {
             {active ? <Overview req={active} /> : <Empty />}
           </TabsContent>
           <TabsContent value="submit" className="mt-6">
-            <NewRequestForm />
+            <NewRequestForm onSubmitted={() => setTab("overview")} />
           </TabsContent>
           <TabsContent value="history" className="mt-6">
             <History list={myRequests} />
@@ -61,6 +69,7 @@ function StudentPage() {
     </AppShell>
   );
 }
+
 
 function Hero({ user, active }: { user: string; active?: ClearanceRequest }) {
   const approved = active?.departments.filter((d) => d.status === "approved").length ?? 0;
@@ -180,7 +189,7 @@ function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; va
   );
 }
 
-function NewRequestForm() {
+function NewRequestForm({ onSubmitted }: { onSubmitted?: () => void }) {
   const user = useAuthUser();
   const [reason, setReason] = useState("");
   const submit = (e: React.FormEvent) => {
@@ -199,7 +208,9 @@ function NewRequestForm() {
     });
     toast.success(`Request ${req.clearanceId} submitted`);
     setReason("");
+    onSubmitted?.();
   };
+
   return (
     <form onSubmit={submit} className="glass-strong rounded-2xl p-6 max-w-2xl space-y-5">
       <div>
