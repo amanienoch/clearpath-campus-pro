@@ -229,6 +229,11 @@ function NewRequestForm({ onSubmitted, hasPending }: { onSubmitted?: () => void;
         <h3 className="font-display font-semibold text-xl">New Clearance Request</h3>
         <p className="text-sm text-muted-foreground mt-1">Your request will be routed to all 6 departments for review.</p>
       </div>
+      {hasPending && (
+        <div className="rounded-xl border border-warning/40 bg-warning/10 text-warning px-4 py-3 text-sm">
+          You already have a pending clearance request. Please wait for it to be completed before submitting another.
+        </div>
+      )}
       <div className="grid sm:grid-cols-2 gap-4">
         <Field label="Full Name" value={user?.name ?? ""} />
         <Field label="Matric No." value={user?.matricNo ?? ""} />
@@ -237,10 +242,11 @@ function NewRequestForm({ onSubmitted, hasPending }: { onSubmitted?: () => void;
       </div>
       <div className="space-y-2">
         <Label htmlFor="reason">Reason for clearance</Label>
-        <Textarea id="reason" rows={4} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Final year graduation clearance" />
+        <Textarea id="reason" rows={4} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Final year graduation clearance" maxLength={500} />
+        <div className="text-xs text-muted-foreground text-right">{reason.length}/500</div>
       </div>
-      <Button type="submit" className="gradient-bg text-primary-foreground shadow-elegant">
-        <Send className="size-4 mr-2" /> Submit request
+      <Button type="submit" disabled={submitting || hasPending} className="gradient-bg text-primary-foreground shadow-elegant">
+        <Send className="size-4 mr-2" /> {submitting ? "Submitting…" : "Submit request"}
       </Button>
     </form>
   );
