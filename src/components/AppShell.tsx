@@ -29,8 +29,16 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
   };
 
   useEffect(() => {
-    if (!user) navigate({ to: "/" });
-  }, [user, navigate]);
+    if (!user) {
+      navigate({ to: "/" });
+      return;
+    }
+    if (role && user.role !== role) {
+      toast.error("You don't have access to that page");
+      const dest = user.role === "student" ? "/student" : user.role === "admin" ? "/admin" : "/department";
+      navigate({ to: dest });
+    }
+  }, [user, navigate, role]);
 
   return (
     <div className="min-h-screen flex">
