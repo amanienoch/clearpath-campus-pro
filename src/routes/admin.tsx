@@ -79,12 +79,12 @@ function AdminPage() {
           <TabsTrigger value="users" className="rounded-lg">Users</TabsTrigger>
           <TabsTrigger value="activity" className="rounded-lg">Activity</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <BigStat icon={<FileCheck2 className="size-6" />} label="Total Requests" value={stats.total} />
             <BigStat icon={<BadgeCheck className="size-6" />} label="Approved" value={stats.approved} tone="success" />
             <BigStat icon={<Clock className="size-6" />} label="Pending" value={stats.pending} tone="warning" />
-            <BigStat icon={<XCircle className="size-6" />} label="Rejected" value={stats.rejected} tone="destructive" />
-          </div>
             <BigStat icon={<XCircle className="size-6" />} label="Rejected" value={stats.rejected} tone="destructive" />
           </div>
 
