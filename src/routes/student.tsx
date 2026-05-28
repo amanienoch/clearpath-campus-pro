@@ -192,26 +192,35 @@ function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; va
   );
 }
 
-function NewRequestForm({ onSubmitted }: { onSubmitted?: () => void }) {
+function NewRequestForm({ onSubmitted, hasPending }: { onSubmitted?: () => void; hasPending?: boolean }) {
   const user = useAuthUser();
   const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    if (reason.trim().length < 5) return toast.error("Please provide a reason (min 5 characters)");
-    const req = store.createRequest({
-      studentId: user.id,
-      studentName: user.name,
-      matricNo: user.matricNo ?? "N/A",
-      program: user.program ?? "N/A",
-      faculty: user.faculty ?? "N/A",
-      level: user.level ?? "N/A",
-      email: user.email,
-      reason: reason.trim(),
-    });
-    toast.success(`Request ${req.clearanceId} submitted`);
-    setReason("");
-    onSubmitted?.();
+    if (hasPending) return toast.error("You already have a pending clearance request");
+    const trimmed = reason.trim();
+    if (trimmed.length < 10) return toast.error("Please provide a reason (min 10 characters)");
+    if (trimmed.length > 500) return toast.error("Reason is too long (max 500 characters)");
+    setSubmitting(true);
+    try {
+      const req = store.createRequest({
+        studentId: user.id,
+        studentName: user.name,
+        matricNo: user.matricNo ?? "N/A",
+        program: user.program ?? "N/A",
+        faculty: user.faculty ?? "N/A",
+        level: user.level ?? "N/A",
+        email: user.email,
+        reason: trimmed,
+      });
+      toast.success(`Request ${req.clearanceId} submitted successfully`);
+      setReason("");
+      onSubmitted?.();
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
