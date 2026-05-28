@@ -51,6 +51,7 @@ function DepartmentPage() {
   return (
     <AppShell
       title={`${dept ?? "Department"} Clearance`}
+      role="department"
       nav={[
         { to: "/department", label: "Requests", icon: <LayoutDashboard className="size-4" /> },
         { to: "/verify", label: "Verify Certificate", icon: <BadgeCheck className="size-4" /> },
