@@ -50,8 +50,11 @@ function AdminPage() {
   const trend = Array.from({ length: 6 }).map((_, i) => {
     const d = new Date(); d.setMonth(d.getMonth() - (5 - i));
     const month = d.toLocaleString("default", { month: "short" });
-    const count = requests.filter((r) => new Date(r.submittedAt).getMonth() === d.getMonth()).length;
-    return { month, requests: count || Math.floor(Math.random() * 12 + 4) };
+    const count = requests.filter((r) => {
+      const rd = new Date(r.submittedAt);
+      return rd.getMonth() === d.getMonth() && rd.getFullYear() === d.getFullYear();
+    }).length;
+    return { month, requests: count };
   });
 
   const pieData = [
