@@ -180,6 +180,15 @@ function Timeline({ event, at, done, bad, celebrate }: { event: string; at: stri
 function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: number | string }) {
   return (
     <div className="glass-strong rounded-2xl p-5 flex items-center gap-4">
+      <div className="size-12 rounded-xl bg-accent grid place-items-center">{icon}</div>
+      <div>
+        <div className="text-sm text-muted-foreground">{label}</div>
+        <div className="font-display font-bold text-2xl">{value}</div>
+      </div>
+    </div>
+  );
+}
+
 function NewRequestForm({ onSubmitted }: { onSubmitted?: () => void }) {
   const user = useAuthUser();
   const [reason, setReason] = useState("");
@@ -202,15 +211,6 @@ function NewRequestForm({ onSubmitted }: { onSubmitted?: () => void }) {
     onSubmitted?.();
   };
 
-      program: user.program ?? "N/A",
-      faculty: user.faculty ?? "N/A",
-      level: user.level ?? "N/A",
-      email: user.email,
-      reason: reason.trim(),
-    });
-    toast.success(`Request ${req.clearanceId} submitted`);
-    setReason("");
-  };
   return (
     <form onSubmit={submit} className="glass-strong rounded-2xl p-6 max-w-2xl space-y-5">
       <div>
