@@ -1,16 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
-import { useAuthUser, useStore, store, DEPARTMENTS as _DEPS } from "@/lib/store";
+import { useAuthUser, useStore, store } from "@/lib/store";
 import { DEPARTMENTS, ClearanceRequest } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
 import { QrCode } from "@/components/QrCode";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { LayoutDashboard, FileText, History, BadgeCheck, QrCode as QrIcon, Send, CheckCircle2, Clock, XCircle, Download } from "lucide-react";
+import { LayoutDashboard, FileText, History as HistoryIcon, BadgeCheck, QrCode as QrIcon, Send, CheckCircle2, Clock, XCircle, Download } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/student")({
