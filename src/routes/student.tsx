@@ -29,11 +29,14 @@ function StudentPage() {
     [all, user],
   );
   const active = myRequests[0];
+  const latestApproved = useMemo(() => myRequests.find((r) => r.overallStatus === "approved"), [myRequests]);
+  const hasPending = myRequests.some((r) => r.overallStatus === "pending");
   const [tab, setTab] = useState("overview");
 
   return (
     <AppShell
       title="Student Portal"
+      role="student"
       nav={[
         { to: "/student", label: "Dashboard", icon: <LayoutDashboard className="size-4" /> },
         { to: "/verify", label: "Verify Certificate", icon: <BadgeCheck className="size-4" /> },
@@ -42,11 +45,11 @@ function StudentPage() {
       <div className="space-y-8">
         <Hero user={user?.name ?? "Student"} active={active} />
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="glass rounded-xl p-1">
+          <TabsList className="glass rounded-xl p-1 flex-wrap h-auto">
             <TabsTrigger value="overview" className="rounded-lg">Overview</TabsTrigger>
             <TabsTrigger value="submit" className="rounded-lg">New Request</TabsTrigger>
             <TabsTrigger value="history" className="rounded-lg">History</TabsTrigger>
-            {active?.overallStatus === "approved" && (
+            {latestApproved && (
               <TabsTrigger value="certificate" className="rounded-lg">Certificate</TabsTrigger>
             )}
           </TabsList>
@@ -54,14 +57,14 @@ function StudentPage() {
             {active ? <Overview req={active} /> : <Empty />}
           </TabsContent>
           <TabsContent value="submit" className="mt-6">
-            <NewRequestForm onSubmitted={() => setTab("overview")} />
+            <NewRequestForm hasPending={hasPending} onSubmitted={() => setTab("overview")} />
           </TabsContent>
           <TabsContent value="history" className="mt-6">
             <History list={myRequests} />
           </TabsContent>
-          {active?.overallStatus === "approved" && (
+          {latestApproved && (
             <TabsContent value="certificate" className="mt-6">
-              <Certificate req={active} />
+              <Certificate req={latestApproved} />
             </TabsContent>
           )}
         </Tabs>
@@ -189,26 +192,35 @@ function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; va
   );
 }
 
-function NewRequestForm({ onSubmitted }: { onSubmitted?: () => void }) {
+function NewRequestForm({ onSubmitted, hasPending }: { onSubmitted?: () => void; hasPending?: boolean }) {
   const user = useAuthUser();
   const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    if (reason.trim().length < 5) return toast.error("Please provide a reason (min 5 characters)");
-    const req = store.createRequest({
-      studentId: user.id,
-      studentName: user.name,
-      matricNo: user.matricNo ?? "N/A",
-      program: user.program ?? "N/A",
-      faculty: user.faculty ?? "N/A",
-      level: user.level ?? "N/A",
-      email: user.email,
-      reason: reason.trim(),
-    });
-    toast.success(`Request ${req.clearanceId} submitted`);
-    setReason("");
-    onSubmitted?.();
+    if (hasPending) return toast.error("You already have a pending clearance request");
+    const trimmed = reason.trim();
+    if (trimmed.length < 10) return toast.error("Please provide a reason (min 10 characters)");
+    if (trimmed.length > 500) return toast.error("Reason is too long (max 500 characters)");
+    setSubmitting(true);
+    try {
+      const req = store.createRequest({
+        studentId: user.id,
+        studentName: user.name,
+        matricNo: user.matricNo ?? "N/A",
+        program: user.program ?? "N/A",
+        faculty: user.faculty ?? "N/A",
+        level: user.level ?? "N/A",
+        email: user.email,
+        reason: trimmed,
+      });
+      toast.success(`Request ${req.clearanceId} submitted successfully`);
+      setReason("");
+      onSubmitted?.();
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -217,6 +229,11 @@ function NewRequestForm({ onSubmitted }: { onSubmitted?: () => void }) {
         <h3 className="font-display font-semibold text-xl">New Clearance Request</h3>
         <p className="text-sm text-muted-foreground mt-1">Your request will be routed to all 6 departments for review.</p>
       </div>
+      {hasPending && (
+        <div className="rounded-xl border border-warning/40 bg-warning/10 text-warning px-4 py-3 text-sm">
+          You already have a pending clearance request. Please wait for it to be completed before submitting another.
+        </div>
+      )}
       <div className="grid sm:grid-cols-2 gap-4">
         <Field label="Full Name" value={user?.name ?? ""} />
         <Field label="Matric No." value={user?.matricNo ?? ""} />
@@ -225,10 +242,11 @@ function NewRequestForm({ onSubmitted }: { onSubmitted?: () => void }) {
       </div>
       <div className="space-y-2">
         <Label htmlFor="reason">Reason for clearance</Label>
-        <Textarea id="reason" rows={4} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Final year graduation clearance" />
+        <Textarea id="reason" rows={4} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Final year graduation clearance" maxLength={500} />
+        <div className="text-xs text-muted-foreground text-right">{reason.length}/500</div>
       </div>
-      <Button type="submit" className="gradient-bg text-primary-foreground shadow-elegant">
-        <Send className="size-4 mr-2" /> Submit request
+      <Button type="submit" disabled={submitting || hasPending} className="gradient-bg text-primary-foreground shadow-elegant">
+        <Send className="size-4 mr-2" /> {submitting ? "Submitting…" : "Submit request"}
       </Button>
     </form>
   );
@@ -247,31 +265,33 @@ function History({ list }: { list: ClearanceRequest[] }) {
   if (!list.length) return <Empty />;
   return (
     <div className="glass-strong rounded-2xl overflow-hidden">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/50 text-left">
-          <tr>
-            <th className="px-4 py-3 font-medium">Clearance ID</th>
-            <th className="px-4 py-3 font-medium">Submitted</th>
-            <th className="px-4 py-3 font-medium">Reason</th>
-            <th className="px-4 py-3 font-medium">Progress</th>
-            <th className="px-4 py-3 font-medium">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {list.map((r) => {
-            const approved = r.departments.filter((d) => d.status === "approved").length;
-            return (
-              <tr key={r.id} className="border-t hover:bg-muted/30">
-                <td className="px-4 py-3 font-mono font-semibold">{r.clearanceId}</td>
-                <td className="px-4 py-3 text-muted-foreground">{new Date(r.submittedAt).toLocaleDateString()}</td>
-                <td className="px-4 py-3">{r.reason}</td>
-                <td className="px-4 py-3">{approved}/{DEPARTMENTS.length}</td>
-                <td className="px-4 py-3"><StatusBadge status={r.overallStatus} /></td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 text-left">
+            <tr>
+              <th className="px-4 py-3 font-medium">Clearance ID</th>
+              <th className="px-4 py-3 font-medium">Submitted</th>
+              <th className="px-4 py-3 font-medium">Reason</th>
+              <th className="px-4 py-3 font-medium">Progress</th>
+              <th className="px-4 py-3 font-medium">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((r) => {
+              const approved = r.departments.filter((d) => d.status === "approved").length;
+              return (
+                <tr key={r.id} className="border-t hover:bg-muted/30">
+                  <td className="px-4 py-3 font-mono font-semibold whitespace-nowrap">{r.clearanceId}</td>
+                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{new Date(r.submittedAt).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 max-w-xs truncate">{r.reason}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{approved}/{DEPARTMENTS.length}</td>
+                  <td className="px-4 py-3"><StatusBadge status={r.overallStatus} /></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

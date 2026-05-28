@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { useStore, store } from "@/lib/store";
 import { DEPARTMENTS, Role, User } from "@/lib/types";
@@ -50,8 +50,11 @@ function AdminPage() {
   const trend = Array.from({ length: 6 }).map((_, i) => {
     const d = new Date(); d.setMonth(d.getMonth() - (5 - i));
     const month = d.toLocaleString("default", { month: "short" });
-    const count = requests.filter((r) => new Date(r.submittedAt).getMonth() === d.getMonth()).length;
-    return { month, requests: count || Math.floor(Math.random() * 12 + 4) };
+    const count = requests.filter((r) => {
+      const rd = new Date(r.submittedAt);
+      return rd.getMonth() === d.getMonth() && rd.getFullYear() === d.getFullYear();
+    }).length;
+    return { month, requests: count };
   });
 
   const pieData = [
@@ -63,13 +66,14 @@ function AdminPage() {
   return (
     <AppShell
       title="Administrator"
+      role="admin"
       nav={[
         { to: "/admin", label: "Overview", icon: <LayoutDashboard className="size-4" /> },
         { to: "/verify", label: "Verify Certificate", icon: <BadgeCheck className="size-4" /> },
       ]}
     >
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="glass rounded-xl p-1">
+        <TabsList className="glass rounded-xl p-1 flex-wrap h-auto">
           <TabsTrigger value="overview" className="rounded-lg">Overview</TabsTrigger>
           <TabsTrigger value="analytics" className="rounded-lg">Analytics</TabsTrigger>
           <TabsTrigger value="users" className="rounded-lg">Users</TabsTrigger>
@@ -78,7 +82,7 @@ function AdminPage() {
 
         <TabsContent value="overview" className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <BigStat icon={<FileCheck2 className="size-6" />} label="Total Requests" value={stats.total} trend="+12%" />
+            <BigStat icon={<FileCheck2 className="size-6" />} label="Total Requests" value={stats.total} />
             <BigStat icon={<BadgeCheck className="size-6" />} label="Approved" value={stats.approved} tone="success" />
             <BigStat icon={<Clock className="size-6" />} label="Pending" value={stats.pending} tone="warning" />
             <BigStat icon={<XCircle className="size-6" />} label="Rejected" value={stats.rejected} tone="destructive" />
@@ -118,29 +122,33 @@ function AdminPage() {
             <div className="p-5 border-b">
               <h3 className="font-display font-semibold text-lg">Recent requests</h3>
             </div>
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40 text-left">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Student</th>
-                  <th className="px-4 py-3 font-medium">Clearance ID</th>
-                  <th className="px-4 py-3 font-medium">Submitted</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {requests.slice(0, 6).map((r) => (
-                  <tr key={r.id} className="border-t">
-                    <td className="px-4 py-3">
-                      <div className="font-medium">{r.studentName}</div>
-                      <div className="text-xs text-muted-foreground">{r.matricNo}</div>
-                    </td>
-                    <td className="px-4 py-3 font-mono">{r.clearanceId}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{new Date(r.submittedAt).toLocaleDateString()}</td>
-                    <td className="px-4 py-3"><StatusBadge status={r.overallStatus} /></td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40 text-left">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Student</th>
+                    <th className="px-4 py-3 font-medium">Clearance ID</th>
+                    <th className="px-4 py-3 font-medium">Submitted</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {requests.length === 0 ? (
+                    <tr><td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">No requests yet.</td></tr>
+                  ) : requests.slice(0, 6).map((r) => (
+                    <tr key={r.id} className="border-t">
+                      <td className="px-4 py-3">
+                        <div className="font-medium">{r.studentName}</div>
+                        <div className="text-xs text-muted-foreground">{r.matricNo}</div>
+                      </td>
+                      <td className="px-4 py-3 font-mono whitespace-nowrap">{r.clearanceId}</td>
+                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{new Date(r.submittedAt).toLocaleDateString()}</td>
+                      <td className="px-4 py-3"><StatusBadge status={r.overallStatus} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </TabsContent>
 
@@ -252,31 +260,33 @@ function UsersTab({ users }: { users: User[] }) {
         <Button onClick={startNew} className="gradient-bg text-primary-foreground"><Plus className="size-4 mr-1" /> New user</Button>
       </div>
       <div className="glass-strong rounded-2xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/40 text-left">
-            <tr>
-              <th className="px-4 py-3 font-medium">Name</th>
-              <th className="px-4 py-3 font-medium">Email</th>
-              <th className="px-4 py-3 font-medium">Role</th>
-              <th className="px-4 py-3 font-medium">Department</th>
-              <th className="px-4 py-3 font-medium text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => (
-              <tr key={u.id} className="border-t hover:bg-muted/30">
-                <td className="px-4 py-3 font-medium">{u.name}</td>
-                <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
-                <td className="px-4 py-3 capitalize">{u.role}</td>
-                <td className="px-4 py-3 text-muted-foreground">{u.department ?? "—"}</td>
-                <td className="px-4 py-3 text-right">
-                  <Button size="sm" variant="ghost" onClick={() => startEdit(u)}><Pencil className="size-3.5" /></Button>
-                  <Button size="sm" variant="ghost" onClick={() => del(u)}><Trash2 className="size-3.5 text-destructive" /></Button>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40 text-left">
+              <tr>
+                <th className="px-4 py-3 font-medium">Name</th>
+                <th className="px-4 py-3 font-medium">Email</th>
+                <th className="px-4 py-3 font-medium">Role</th>
+                <th className="px-4 py-3 font-medium">Department</th>
+                <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.id} className="border-t hover:bg-muted/30">
+                  <td className="px-4 py-3 font-medium whitespace-nowrap">{u.name}</td>
+                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{u.email}</td>
+                  <td className="px-4 py-3 capitalize">{u.role}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{u.department ?? "—"}</td>
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                    <Button size="sm" variant="ghost" onClick={() => startEdit(u)} aria-label={`Edit ${u.name}`}><Pencil className="size-3.5" /></Button>
+                    <Button size="sm" variant="ghost" onClick={() => del(u)} aria-label={`Delete ${u.name}`}><Trash2 className="size-3.5 text-destructive" /></Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
       <UserDialog open={open} onClose={() => setOpen(false)} user={edit} />
     </div>
@@ -285,13 +295,22 @@ function UsersTab({ users }: { users: User[] }) {
 
 function UserDialog({ open, onClose, user }: { open: boolean; onClose: () => void; user: User | null }) {
   const [draft, setDraft] = useState<User | null>(user);
-  // sync when opening
-  if (open && draft?.id !== user?.id) setDraft(user);
+  const allUsers = useStore((s) => s.users);
+  useEffect(() => {
+    if (open) setDraft(user);
+  }, [open, user]);
 
   if (!draft) return null;
   const save = () => {
-    if (!draft.name || !draft.email || !draft.password) return toast.error("All fields are required");
-    store.upsertUser(draft);
+    const name = draft.name.trim();
+    const email = draft.email.trim().toLowerCase();
+    if (!name || !email || !draft.password) return toast.error("All fields are required");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast.error("Please enter a valid email address");
+    if (draft.password.length < 6) return toast.error("Password must be at least 6 characters");
+    if (draft.role === "department" && !draft.department) return toast.error("Please select a department");
+    const dup = allUsers.find((u) => u.email.toLowerCase() === email && u.id !== draft.id);
+    if (dup) return toast.error("Another user already uses this email");
+    store.upsertUser({ ...draft, name, email });
     toast.success("User saved");
     onClose();
   };

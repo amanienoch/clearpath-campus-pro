@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { useAuthUser, useStore, store } from "@/lib/store";
 import { ClearanceRequest, ClearanceStatus, Department } from "@/lib/types";
@@ -51,6 +51,7 @@ function DepartmentPage() {
   return (
     <AppShell
       title={`${dept ?? "Department"} Clearance`}
+      role="department"
       nav={[
         { to: "/department", label: "Requests", icon: <LayoutDashboard className="size-4" /> },
         { to: "/verify", label: "Verify Certificate", icon: <BadgeCheck className="size-4" /> },
@@ -142,6 +143,13 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
 
 function ReviewModal({ req, dept, onClose, reviewer }: { req: ClearanceRequest | null; dept?: Department; onClose: () => void; reviewer: string }) {
   const [remarks, setRemarks] = useState("");
+  const [busy, setBusy] = useState<"approved" | "rejected" | null>(null);
+  useEffect(() => {
+    if (req && dept) {
+      const mine = req.departments.find((d) => d.department === dept);
+      setRemarks(mine?.remarks ?? "");
+    }
+  }, [req, dept]);
   if (!req || !dept) return null;
   const mine = req.departments.find((d) => d.department === dept)!;
 
@@ -149,10 +157,16 @@ function ReviewModal({ req, dept, onClose, reviewer }: { req: ClearanceRequest |
     if (status === "rejected" && remarks.trim().length < 3) {
       return toast.error("Please add remarks before rejecting.");
     }
-    store.reviewDepartment(req.id, dept, status, remarks || (status === "approved" ? "Cleared." : ""), reviewer);
-    toast.success(`Request ${status}`);
-    setRemarks("");
-    onClose();
+    if (remarks.length > 500) return toast.error("Remarks too long (max 500 characters)");
+    setBusy(status);
+    try {
+      store.reviewDepartment(req.id, dept, status, remarks.trim() || (status === "approved" ? "Cleared." : ""), reviewer);
+      toast.success(`Request ${status}`);
+      setRemarks("");
+      onClose();
+    } finally {
+      setBusy(null);
+    }
   };
 
   return (
@@ -189,9 +203,9 @@ function ReviewModal({ req, dept, onClose, reviewer }: { req: ClearanceRequest |
           </div>
 
           <div className="flex flex-wrap gap-2 justify-end">
-            <Button variant="outline" onClick={onClose}>Close</Button>
-            <Button variant="destructive" onClick={() => act("rejected")}><XCircle className="size-4 mr-1" /> Reject</Button>
-            <Button className="gradient-bg text-primary-foreground" onClick={() => act("approved")}><CheckCircle2 className="size-4 mr-1" /> Approve</Button>
+            <Button variant="outline" onClick={onClose} disabled={!!busy}>Close</Button>
+            <Button variant="destructive" onClick={() => act("rejected")} disabled={!!busy}><XCircle className="size-4 mr-1" /> {busy === "rejected" ? "Rejecting…" : "Reject"}</Button>
+            <Button className="gradient-bg text-primary-foreground" onClick={() => act("approved")} disabled={!!busy}><CheckCircle2 className="size-4 mr-1" /> {busy === "approved" ? "Approving…" : "Approve"}</Button>
           </div>
         </div>
       </DialogContent>
