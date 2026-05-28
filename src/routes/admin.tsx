@@ -66,13 +66,14 @@ function AdminPage() {
   return (
     <AppShell
       title="Administrator"
+      role="admin"
       nav={[
         { to: "/admin", label: "Overview", icon: <LayoutDashboard className="size-4" /> },
         { to: "/verify", label: "Verify Certificate", icon: <BadgeCheck className="size-4" /> },
       ]}
     >
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="glass rounded-xl p-1">
+        <TabsList className="glass rounded-xl p-1 flex-wrap h-auto">
           <TabsTrigger value="overview" className="rounded-lg">Overview</TabsTrigger>
           <TabsTrigger value="analytics" className="rounded-lg">Analytics</TabsTrigger>
           <TabsTrigger value="users" className="rounded-lg">Users</TabsTrigger>
