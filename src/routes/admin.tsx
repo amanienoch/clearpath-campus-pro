@@ -295,13 +295,22 @@ function UsersTab({ users }: { users: User[] }) {
 
 function UserDialog({ open, onClose, user }: { open: boolean; onClose: () => void; user: User | null }) {
   const [draft, setDraft] = useState<User | null>(user);
-  // sync when opening
-  if (open && draft?.id !== user?.id) setDraft(user);
+  const allUsers = useStore((s) => s.users);
+  useEffect(() => {
+    if (open) setDraft(user);
+  }, [open, user]);
 
   if (!draft) return null;
   const save = () => {
-    if (!draft.name || !draft.email || !draft.password) return toast.error("All fields are required");
-    store.upsertUser(draft);
+    const name = draft.name.trim();
+    const email = draft.email.trim().toLowerCase();
+    if (!name || !email || !draft.password) return toast.error("All fields are required");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast.error("Please enter a valid email address");
+    if (draft.password.length < 6) return toast.error("Password must be at least 6 characters");
+    if (draft.role === "department" && !draft.department) return toast.error("Please select a department");
+    const dup = allUsers.find((u) => u.email.toLowerCase() === email && u.id !== draft.id);
+    if (dup) return toast.error("Another user already uses this email");
+    store.upsertUser({ ...draft, name, email });
     toast.success("User saved");
     onClose();
   };
