@@ -203,9 +203,9 @@ function ReviewModal({ req, dept, onClose, reviewer }: { req: ClearanceRequest |
           </div>
 
           <div className="flex flex-wrap gap-2 justify-end">
-            <Button variant="outline" onClick={onClose}>Close</Button>
-            <Button variant="destructive" onClick={() => act("rejected")}><XCircle className="size-4 mr-1" /> Reject</Button>
-            <Button className="gradient-bg text-primary-foreground" onClick={() => act("approved")}><CheckCircle2 className="size-4 mr-1" /> Approve</Button>
+            <Button variant="outline" onClick={onClose} disabled={!!busy}>Close</Button>
+            <Button variant="destructive" onClick={() => act("rejected")} disabled={!!busy}><XCircle className="size-4 mr-1" /> {busy === "rejected" ? "Rejecting…" : "Reject"}</Button>
+            <Button className="gradient-bg text-primary-foreground" onClick={() => act("approved")} disabled={!!busy}><CheckCircle2 className="size-4 mr-1" /> {busy === "approved" ? "Approving…" : "Approve"}</Button>
           </div>
         </div>
       </DialogContent>
