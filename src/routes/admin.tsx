@@ -122,29 +122,33 @@ function AdminPage() {
             <div className="p-5 border-b">
               <h3 className="font-display font-semibold text-lg">Recent requests</h3>
             </div>
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40 text-left">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Student</th>
-                  <th className="px-4 py-3 font-medium">Clearance ID</th>
-                  <th className="px-4 py-3 font-medium">Submitted</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {requests.slice(0, 6).map((r) => (
-                  <tr key={r.id} className="border-t">
-                    <td className="px-4 py-3">
-                      <div className="font-medium">{r.studentName}</div>
-                      <div className="text-xs text-muted-foreground">{r.matricNo}</div>
-                    </td>
-                    <td className="px-4 py-3 font-mono">{r.clearanceId}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{new Date(r.submittedAt).toLocaleDateString()}</td>
-                    <td className="px-4 py-3"><StatusBadge status={r.overallStatus} /></td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40 text-left">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Student</th>
+                    <th className="px-4 py-3 font-medium">Clearance ID</th>
+                    <th className="px-4 py-3 font-medium">Submitted</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {requests.length === 0 ? (
+                    <tr><td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">No requests yet.</td></tr>
+                  ) : requests.slice(0, 6).map((r) => (
+                    <tr key={r.id} className="border-t">
+                      <td className="px-4 py-3">
+                        <div className="font-medium">{r.studentName}</div>
+                        <div className="text-xs text-muted-foreground">{r.matricNo}</div>
+                      </td>
+                      <td className="px-4 py-3 font-mono whitespace-nowrap">{r.clearanceId}</td>
+                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{new Date(r.submittedAt).toLocaleDateString()}</td>
+                      <td className="px-4 py-3"><StatusBadge status={r.overallStatus} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </TabsContent>
 
