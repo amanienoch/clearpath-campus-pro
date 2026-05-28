@@ -265,31 +265,33 @@ function History({ list }: { list: ClearanceRequest[] }) {
   if (!list.length) return <Empty />;
   return (
     <div className="glass-strong rounded-2xl overflow-hidden">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/50 text-left">
-          <tr>
-            <th className="px-4 py-3 font-medium">Clearance ID</th>
-            <th className="px-4 py-3 font-medium">Submitted</th>
-            <th className="px-4 py-3 font-medium">Reason</th>
-            <th className="px-4 py-3 font-medium">Progress</th>
-            <th className="px-4 py-3 font-medium">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {list.map((r) => {
-            const approved = r.departments.filter((d) => d.status === "approved").length;
-            return (
-              <tr key={r.id} className="border-t hover:bg-muted/30">
-                <td className="px-4 py-3 font-mono font-semibold">{r.clearanceId}</td>
-                <td className="px-4 py-3 text-muted-foreground">{new Date(r.submittedAt).toLocaleDateString()}</td>
-                <td className="px-4 py-3">{r.reason}</td>
-                <td className="px-4 py-3">{approved}/{DEPARTMENTS.length}</td>
-                <td className="px-4 py-3"><StatusBadge status={r.overallStatus} /></td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 text-left">
+            <tr>
+              <th className="px-4 py-3 font-medium">Clearance ID</th>
+              <th className="px-4 py-3 font-medium">Submitted</th>
+              <th className="px-4 py-3 font-medium">Reason</th>
+              <th className="px-4 py-3 font-medium">Progress</th>
+              <th className="px-4 py-3 font-medium">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((r) => {
+              const approved = r.departments.filter((d) => d.status === "approved").length;
+              return (
+                <tr key={r.id} className="border-t hover:bg-muted/30">
+                  <td className="px-4 py-3 font-mono font-semibold whitespace-nowrap">{r.clearanceId}</td>
+                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{new Date(r.submittedAt).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 max-w-xs truncate">{r.reason}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{approved}/{DEPARTMENTS.length}</td>
+                  <td className="px-4 py-3"><StatusBadge status={r.overallStatus} /></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
