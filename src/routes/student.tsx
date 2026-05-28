@@ -36,6 +36,7 @@ function StudentPage() {
   return (
     <AppShell
       title="Student Portal"
+      role="student"
       nav={[
         { to: "/student", label: "Dashboard", icon: <LayoutDashboard className="size-4" /> },
         { to: "/verify", label: "Verify Certificate", icon: <BadgeCheck className="size-4" /> },
@@ -44,11 +45,11 @@ function StudentPage() {
       <div className="space-y-8">
         <Hero user={user?.name ?? "Student"} active={active} />
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="glass rounded-xl p-1">
+          <TabsList className="glass rounded-xl p-1 flex-wrap h-auto">
             <TabsTrigger value="overview" className="rounded-lg">Overview</TabsTrigger>
             <TabsTrigger value="submit" className="rounded-lg">New Request</TabsTrigger>
             <TabsTrigger value="history" className="rounded-lg">History</TabsTrigger>
-            {active?.overallStatus === "approved" && (
+            {latestApproved && (
               <TabsTrigger value="certificate" className="rounded-lg">Certificate</TabsTrigger>
             )}
           </TabsList>
@@ -56,14 +57,14 @@ function StudentPage() {
             {active ? <Overview req={active} /> : <Empty />}
           </TabsContent>
           <TabsContent value="submit" className="mt-6">
-            <NewRequestForm onSubmitted={() => setTab("overview")} />
+            <NewRequestForm hasPending={hasPending} onSubmitted={() => setTab("overview")} />
           </TabsContent>
           <TabsContent value="history" className="mt-6">
             <History list={myRequests} />
           </TabsContent>
-          {active?.overallStatus === "approved" && (
+          {latestApproved && (
             <TabsContent value="certificate" className="mt-6">
-              <Certificate req={active} />
+              <Certificate req={latestApproved} />
             </TabsContent>
           )}
         </Tabs>
