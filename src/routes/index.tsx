@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { authStore, useAuthUser } from "@/lib/store";
+import { ensureSeed } from "@/lib/seed.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,12 +32,16 @@ function LoginPage() {
   const [password, setPassword] = useState("");
 
   useEffect(() => {
+  useEffect(() => {
+    ensureSeed().catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (user) {
       const dest = user.role === "student" ? "/student" : user.role === "admin" ? "/admin" : "/department";
       navigate({ to: dest });
     }
   }, [user, navigate]);
-
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const role = await authStore.login(email, password);
