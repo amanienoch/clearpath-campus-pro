@@ -14,16 +14,194 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      activity_logs: {
+        Row: {
+          action: string
+          actor: string
+          at: string
+          id: string
+          target: string | null
+        }
+        Insert: {
+          action: string
+          actor: string
+          at?: string
+          id?: string
+          target?: string | null
+        }
+        Update: {
+          action?: string
+          actor?: string
+          at?: string
+          id?: string
+          target?: string | null
+        }
+        Relationships: []
+      }
+      clearance_requests: {
+        Row: {
+          clearance_id: string
+          email: string
+          faculty: string
+          id: string
+          level: string
+          matric_no: string
+          overall_status: Database["public"]["Enums"]["clearance_status"]
+          program: string
+          reason: string
+          student_id: string
+          student_name: string
+          submitted_at: string
+        }
+        Insert: {
+          clearance_id: string
+          email: string
+          faculty: string
+          id?: string
+          level: string
+          matric_no: string
+          overall_status?: Database["public"]["Enums"]["clearance_status"]
+          program: string
+          reason: string
+          student_id: string
+          student_name: string
+          submitted_at?: string
+        }
+        Update: {
+          clearance_id?: string
+          email?: string
+          faculty?: string
+          id?: string
+          level?: string
+          matric_no?: string
+          overall_status?: Database["public"]["Enums"]["clearance_status"]
+          program?: string
+          reason?: string
+          student_id?: string
+          student_name?: string
+          submitted_at?: string
+        }
+        Relationships: []
+      }
+      dept_reviews: {
+        Row: {
+          department: Database["public"]["Enums"]["department_t"]
+          id: string
+          remarks: string | null
+          request_id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["clearance_status"]
+        }
+        Insert: {
+          department: Database["public"]["Enums"]["department_t"]
+          id?: string
+          remarks?: string | null
+          request_id: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["clearance_status"]
+        }
+        Update: {
+          department?: Database["public"]["Enums"]["department_t"]
+          id?: string
+          remarks?: string | null
+          request_id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["clearance_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dept_reviews_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "clearance_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          department: Database["public"]["Enums"]["department_t"] | null
+          email: string
+          faculty: string | null
+          id: string
+          level: string | null
+          matric_no: string | null
+          name: string
+          program: string | null
+        }
+        Insert: {
+          created_at?: string
+          department?: Database["public"]["Enums"]["department_t"] | null
+          email: string
+          faculty?: string | null
+          id: string
+          level?: string | null
+          matric_no?: string | null
+          name: string
+          program?: string | null
+        }
+        Update: {
+          created_at?: string
+          department?: Database["public"]["Enums"]["department_t"] | null
+          email?: string
+          faculty?: string | null
+          id?: string
+          level?: string | null
+          matric_no?: string | null
+          name?: string
+          program?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      current_department: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["department_t"]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "student" | "department" | "admin"
+      clearance_status: "pending" | "approved" | "rejected"
+      department_t:
+        | "Finance"
+        | "Library"
+        | "ICT"
+        | "Registrar"
+        | "Hostel"
+        | "Sports"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +328,17 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["student", "department", "admin"],
+      clearance_status: ["pending", "approved", "rejected"],
+      department_t: [
+        "Finance",
+        "Library",
+        "ICT",
+        "Registrar",
+        "Hostel",
+        "Sports",
+      ],
+    },
   },
 } as const
