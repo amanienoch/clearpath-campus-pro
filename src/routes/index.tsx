@@ -39,21 +39,20 @@ function LoginPage() {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const role = authStore.login(email, password);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const role = await authStore.login(email, password);
     if (!role) return toast.error("Invalid email or password");
     toast.success(`Welcome back!`);
     navigate({ to: role === "student" ? "/student" : role === "admin" ? "/admin" : "/department" });
   };
 
-  const quickLogin = (e: string, p: string, path: string) => {
-    authStore.login(e, p);
+  const quickLogin = async (e: string, p: string, path: string) => {
+    const role = await authStore.login(e, p);
+    if (!role) return toast.error("Demo accounts are still being prepared. Please try again in a moment.");
     toast.success("Signed in as demo user");
     navigate({ to: path });
   };
-
-  return (
-    <div className="min-h-screen grid lg:grid-cols-2">
-      {/* Left hero */}
       <div className="relative hidden lg:flex flex-col justify-between p-12 hero-bg text-primary-foreground overflow-hidden">
         <div className="absolute -top-20 -right-20 size-96 rounded-full bg-white/10 blur-3xl animate-float" />
         <div className="absolute bottom-10 -left-10 size-80 rounded-full bg-white/10 blur-3xl animate-float" style={{ animationDelay: "2s" }} />
