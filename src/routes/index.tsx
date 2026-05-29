@@ -37,8 +37,6 @@ function LoginPage() {
     }
   }, [user, navigate]);
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const role = await authStore.login(email, password);
@@ -53,6 +51,10 @@ function LoginPage() {
     toast.success("Signed in as demo user");
     navigate({ to: path });
   };
+
+  return (
+    <div className="min-h-screen grid lg:grid-cols-2">
+      {/* Left hero */}
       <div className="relative hidden lg:flex flex-col justify-between p-12 hero-bg text-primary-foreground overflow-hidden">
         <div className="absolute -top-20 -right-20 size-96 rounded-full bg-white/10 blur-3xl animate-float" />
         <div className="absolute bottom-10 -left-10 size-80 rounded-full bg-white/10 blur-3xl animate-float" style={{ animationDelay: "2s" }} />
