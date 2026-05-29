@@ -193,6 +193,8 @@ function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; va
 }
 
 function NewRequestForm({ onSubmitted, hasPending }: { onSubmitted?: () => void; hasPending?: boolean }) {
+  const user = useAuthUser();
+  const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
