@@ -160,14 +160,17 @@ export const ensureSeed = createServerFn({ method: "POST" }).handler(async () =>
       level: o.lvl,
       email: o.email,
       reason: o.reason,
+      submitted_at: daysAgo(o.days),
+    }).select("id").single();
     if (r.data) {
       for (const rv of o.reviews) {
         await supabaseAdmin.from("dept_reviews").update({
           status: rv.s as "approved" | "rejected" | "pending",
-          remarks: rv.r, reviewed_by: rv.by, reviewed_at: daysAgo(o.days - 1),
+          remarks: rv.r,
+          reviewed_by: rv.by,
+          reviewed_at: daysAgo(o.days - 1),
         }).eq("request_id", r.data.id).eq("department", rv.d);
       }
-    }
     }
   }
 
