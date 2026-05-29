@@ -32,7 +32,6 @@ function LoginPage() {
   const [password, setPassword] = useState("");
 
   useEffect(() => {
-  useEffect(() => {
     ensureSeed().catch(() => {});
   }, []);
 
