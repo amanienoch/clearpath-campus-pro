@@ -193,3 +193,65 @@
   to { opacity: 1; transform: translateY(0); }
 }
 .animate-fade-up { animation: fade-up 0.5s ease-out both; }
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade-in { animation: fade-in 0.4s ease-out both; }
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-scale-in { animation: scale-in 0.25s ease-out both; }
+
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--muted) 80%, transparent) 0%,
+    color-mix(in oklab, var(--accent) 60%, transparent) 50%,
+    color-mix(in oklab, var(--muted) 80%, transparent) 100%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--warning) 55%, transparent); }
+  70% { box-shadow: 0 0 0 8px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.pulse-ring { animation: pulse-ring 1.8s ease-out infinite; }
+
+@keyframes pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.animate-pop { animation: pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+.hover-lift { transition: transform 0.25s ease, box-shadow 0.25s ease; }
+.hover-lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-elegant); }
+
+.neon-glow {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--primary) 25%, transparent),
+    0 10px 40px -10px color-mix(in oklab, var(--primary-glow) 60%, transparent);
+}
+
+.row-hover { transition: background-color 0.2s ease; }
+.row-hover:hover { background-color: color-mix(in oklab, var(--accent) 35%, transparent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-float, .animate-fade-up, .animate-fade-in, .animate-scale-in,
+  .shimmer, .pulse-ring, .animate-pop { animation: none !important; }
+}
+
+@media print {
+  body { background: white !important; background-image: none !important; }
+}
