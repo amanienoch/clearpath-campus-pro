@@ -19,6 +19,7 @@ import {
   LineChart, Line, CartesianGrid, PieChart, Pie, Cell, Legend,
 } from "recharts";
 import { toast } from "sonner";
+import { AnimatedCounter } from "@/components/AnimatedCounter";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin Dashboard — E-Clearance" }] }),
@@ -135,8 +136,8 @@ function AdminPage() {
                 <tbody>
                   {requests.length === 0 ? (
                     <tr><td colSpan={4} className="px-4 py-10 text-center text-muted-foreground">No requests yet.</td></tr>
-                  ) : requests.slice(0, 6).map((r) => (
-                    <tr key={r.id} className="border-t">
+                  ) : requests.slice(0, 6).map((r, i) => (
+                    <tr key={r.id} className="border-t row-hover animate-fade-up" style={{ animationDelay: `${i * 40}ms` }}>
                       <td className="px-4 py-3">
                         <div className="font-medium">{r.studentName}</div>
                         <div className="text-xs text-muted-foreground">{r.matricNo}</div>
@@ -167,19 +168,19 @@ function AdminPage() {
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {deptData.map((d) => {
+            {deptData.map((d, i) => {
               const totalD = d.approved + d.pending + d.rejected;
               const rate = totalD ? Math.round((d.approved / totalD) * 100) : 0;
               return (
-                <div key={d.name} className="glass-strong rounded-2xl p-5">
+                <div key={d.name} className="glass-strong rounded-2xl p-5 hover-lift animate-fade-up" style={{ animationDelay: `${i * 60}ms` }}>
                   <div className="flex items-center justify-between">
                     <div className="font-medium">{d.name}</div>
                     <TrendingUp className="size-4 text-primary" />
                   </div>
-                  <div className="font-display font-bold text-3xl mt-2">{rate}%</div>
+                  <div className="font-display font-bold text-3xl mt-2"><AnimatedCounter value={rate} suffix="%" /></div>
                   <div className="text-xs text-muted-foreground">Approval rate · {totalD} reviews</div>
                   <div className="mt-3 h-2 rounded-full bg-muted overflow-hidden">
-                    <div className="h-full gradient-bg" style={{ width: `${rate}%` }} />
+                    <div className="h-full gradient-bg transition-all duration-700 ease-out" style={{ width: `${rate}%` }} />
                   </div>
                 </div>
               );
