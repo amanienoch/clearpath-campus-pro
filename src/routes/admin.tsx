@@ -223,12 +223,12 @@ function AdminPage() {
 function BigStat({ icon, label, value, trend, tone }: { icon: React.ReactNode; label: string; value: number; trend?: string; tone?: "success" | "warning" | "destructive" }) {
   const toneCls = tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : tone === "destructive" ? "text-destructive" : "text-primary";
   return (
-    <div className="glass-strong rounded-2xl p-5">
+    <div className="glass-strong rounded-2xl p-5 hover-lift animate-fade-up">
       <div className="flex items-center justify-between">
-        <div className={`size-11 rounded-xl bg-accent grid place-items-center ${toneCls}`}>{icon}</div>
+        <div className={`size-11 rounded-xl bg-accent grid place-items-center ${toneCls} transition-transform group-hover:scale-110`}>{icon}</div>
         {trend && <span className="text-xs font-medium text-success">{trend}</span>}
       </div>
-      <div className="font-display font-bold text-3xl mt-3">{value}</div>
+      <div className="font-display font-bold text-3xl mt-3"><AnimatedCounter value={value} /></div>
       <div className="text-sm text-muted-foreground">{label}</div>
     </div>
   );
