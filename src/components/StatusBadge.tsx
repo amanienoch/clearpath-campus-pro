@@ -24,8 +24,10 @@ export function StatusBadge({ status, className }: { status: ClearanceStatus; cl
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border",
+        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-transform",
+        "animate-scale-in hover:scale-[1.04]",
         s.cls,
+        status === "pending" && "pulse-ring",
         className,
       )}
     >

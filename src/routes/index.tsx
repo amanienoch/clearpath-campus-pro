@@ -118,7 +118,7 @@ function LoginPage() {
               <Label htmlFor="password">Password</Label>
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
             </div>
-            <Button type="submit" className="w-full gradient-bg text-primary-foreground shadow-elegant h-11 text-base">
+            <Button type="submit" className="w-full gradient-bg text-primary-foreground shadow-elegant h-11 text-base neon-glow hover:scale-[1.01] transition-transform">
               Sign in <ArrowRight className="ml-1 size-4" />
             </Button>
           </form>

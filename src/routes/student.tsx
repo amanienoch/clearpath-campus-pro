@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { LayoutDashboard, FileText, History as HistoryIcon, BadgeCheck, QrCode as QrIcon, Send, CheckCircle2, Clock, XCircle, Download } from "lucide-react";
 import { toast } from "sonner";
+import { AnimatedCounter } from "@/components/AnimatedCounter";
 
 export const Route = createFileRoute("/student")({
   head: () => ({ meta: [{ title: "Student Dashboard — E-Clearance" }] }),
@@ -96,8 +97,9 @@ function Hero({ user, active }: { user: string; active?: ClearanceRequest }) {
             <div className="text-xs text-white/75">Clearance ID</div>
             <div className="font-display font-bold text-2xl mt-1">{active.clearanceId}</div>
             <div className="mt-3 w-56 h-2 rounded-full bg-white/20 overflow-hidden">
-              <div className="h-full bg-white transition-all" style={{ width: `${pct}%` }} />
+              <div className="h-full bg-white transition-all duration-1000 ease-out" style={{ width: `${pct}%` }} />
             </div>
+            <div className="mt-1 text-xs text-white/80 tabular-nums"><AnimatedCounter value={pct} suffix="% complete" /></div>
           </div>
         )}
       </div>
@@ -133,8 +135,8 @@ function Overview({ req }: { req: ClearanceRequest }) {
         <div className="glass-strong rounded-2xl p-6">
           <h3 className="font-display font-semibold text-lg mb-4">Department Status</h3>
           <div className="space-y-3">
-            {req.departments.map((d) => (
-              <div key={d.department} className="flex items-center justify-between p-3 rounded-xl border bg-card/50">
+            {req.departments.map((d, i) => (
+              <div key={d.department} className="flex items-center justify-between p-3 rounded-xl border bg-card/50 hover-lift animate-fade-up" style={{ animationDelay: `${i * 50}ms` }}>
                 <div>
                   <div className="font-medium">{d.department}</div>
                   {d.remarks && <div className="text-xs text-muted-foreground mt-0.5">{d.remarks}</div>}
@@ -182,11 +184,13 @@ function Timeline({ event, at, done, bad, celebrate }: { event: string; at: stri
 
 function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: number | string }) {
   return (
-    <div className="glass-strong rounded-2xl p-5 flex items-center gap-4">
+    <div className="glass-strong rounded-2xl p-5 flex items-center gap-4 hover-lift animate-fade-up">
       <div className="size-12 rounded-xl bg-accent grid place-items-center">{icon}</div>
       <div>
         <div className="text-sm text-muted-foreground">{label}</div>
-        <div className="font-display font-bold text-2xl">{value}</div>
+        <div className="font-display font-bold text-2xl">
+          {typeof value === "number" ? <AnimatedCounter value={value} /> : value}
+        </div>
       </div>
     </div>
   );
