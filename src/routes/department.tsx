@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { LayoutDashboard, Search, CheckCircle2, Clock, XCircle, Inbox, BadgeCheck } from "lucide-react";
 import { toast } from "sonner";
+import { AnimatedCounter } from "@/components/AnimatedCounter";
 
 export const Route = createFileRoute("/department")({
   head: () => ({ meta: [{ title: "Department Dashboard — E-Clearance" }] }),
@@ -103,8 +104,8 @@ function DepartmentPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((r) => (
-                    <tr key={r.id} className="border-t hover:bg-muted/30">
+                  {filtered.map((r, i) => (
+                    <tr key={r.id} className="border-t row-hover animate-fade-up" style={{ animationDelay: `${i * 30}ms` }}>
                       <td className="px-4 py-3">
                         <div className="font-semibold">{r.studentName}</div>
                         <div className="text-xs text-muted-foreground">{r.matricNo} · {r.program}</div>
@@ -113,7 +114,7 @@ function DepartmentPage() {
                       <td className="px-4 py-3 text-muted-foreground">{new Date(r.submittedAt).toLocaleDateString()}</td>
                       <td className="px-4 py-3"><StatusBadge status={myStatusOf(r)} /></td>
                       <td className="px-4 py-3 text-right">
-                        <Button size="sm" variant="outline" onClick={() => setSelected(r)}>Review</Button>
+                        <Button size="sm" variant="outline" className="hover:scale-[1.03] transition-transform" onClick={() => setSelected(r)}>Review</Button>
                       </td>
                     </tr>
                   ))}
@@ -131,11 +132,11 @@ function DepartmentPage() {
 
 function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
   return (
-    <div className="glass-strong rounded-2xl p-5">
+    <div className="glass-strong rounded-2xl p-5 hover-lift animate-fade-up">
       <div className="flex items-center justify-between">
         <div className="size-10 rounded-xl bg-accent grid place-items-center">{icon}</div>
       </div>
-      <div className="mt-3 font-display font-bold text-3xl">{value}</div>
+      <div className="mt-3 font-display font-bold text-3xl"><AnimatedCounter value={value} /></div>
       <div className="text-sm text-muted-foreground">{label}</div>
     </div>
   );
