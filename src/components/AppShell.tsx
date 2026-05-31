@@ -126,7 +126,7 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
             </div>
           </div>
         </header>
-        <main className="flex-1 px-4 sm:px-8 py-6 sm:py-10 max-w-7xl w-full mx-auto animate-fade-up">
+        <main key={path} className="flex-1 px-4 sm:px-8 py-6 sm:py-10 max-w-7xl w-full mx-auto animate-fade-up">
           {children}
         </main>
       </div>
