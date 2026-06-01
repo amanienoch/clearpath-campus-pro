@@ -1,6 +1,6 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
-import { authStore, useAuthUser } from "@/lib/store";
+import { authStore, useAuthHydrated, useAuthUser } from "@/lib/store";
 import { Role } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { GraduationCap, LogOut, Menu, Moon, ShieldCheck, Sun, X } from "lucide-react";
@@ -11,6 +11,7 @@ interface NavItem { to: string; label: string; icon: ReactNode; }
 
 export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title: string; children: ReactNode; role?: Role }) {
   const user = useAuthUser();
+  const authReady = useAuthHydrated();
   const navigate = useNavigate();
   const path = useRouterState({ select: (r) => r.location.pathname });
   const [open, setOpen] = useState(false);
@@ -29,6 +30,7 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
   };
 
   useEffect(() => {
+    if (!authReady) return;
     if (!user) {
       navigate({ to: "/" });
       return;
@@ -38,7 +40,7 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
       const dest = user.role === "student" ? "/student" : user.role === "admin" ? "/admin" : "/department";
       navigate({ to: dest });
     }
-  }, [user, navigate, role]);
+  }, [authReady, user, navigate, role]);
 
   return (
     <div className="min-h-screen flex">

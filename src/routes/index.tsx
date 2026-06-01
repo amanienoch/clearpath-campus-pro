@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { authStore, useAuthUser } from "@/lib/store";
+import { authStore, useAuthHydrated, useAuthUser } from "@/lib/store";
 import { ensureSeed } from "@/lib/seed.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,7 @@ const DEMOS = [
 function LoginPage() {
   const navigate = useNavigate();
   const user = useAuthUser();
+  const authReady = useAuthHydrated();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -36,11 +37,10 @@ useEffect(() => {
 }, []);
 
   useEffect(() => {
-    if (user) {
-      const dest = user.role === "student" ? "/student" : user.role === "admin" ? "/admin" : "/department";
-      navigate({ to: dest });
-    }
-  }, [user, navigate]);
+    if (!authReady || !user) return;
+    const dest = user.role === "student" ? "/student" : user.role === "admin" ? "/admin" : "/department";
+    navigate({ to: dest });
+  }, [authReady, user, navigate]);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const role = await authStore.login(email, password);
@@ -88,7 +88,7 @@ useEffect(() => {
         </div>
 
         <div className="relative text-sm text-white/80 flex items-center gap-2">
-          <Link to="/verify" className="inline-flex items-center gap-2 hover:underline">
+          <Link to="/verify" search={{ id: "" }} className="inline-flex items-center gap-2 hover:underline">
             <QrCode className="size-4" /> Verify a clearance certificate
           </Link>
         </div>
@@ -144,7 +144,7 @@ useEffect(() => {
           </div>
 
           <p className="text-center text-xs text-muted-foreground">
-            <Link to="/verify" className="hover:text-foreground underline-offset-4 hover:underline">
+            <Link to="/verify" search={{ id: "" }} className="hover:text-foreground underline-offset-4 hover:underline">
               Verify a clearance certificate →
             </Link>
           </p>

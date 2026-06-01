@@ -269,11 +269,16 @@ export function useStore<T>(selector: (s: State) => T): T {
 
 interface AuthState { user: User | null; }
 let auth: AuthState = { user: null };
+let authHydrated = false;
 const authListeners = new Set<() => void>();
 const notifyAuth = () => authListeners.forEach((l) => l());
 
 async function hydrateAuthUser(userId: string | null) {
-  if (!userId) { auth = { user: null }; notifyAuth(); return; }
+  if (!userId) {
+    auth = { user: null };
+    notifyAuth();
+    return;
+  }
   const [{ data: p }, { data: roles }] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
     supabase.from("user_roles").select("role").eq("user_id", userId),
@@ -303,7 +308,15 @@ function bootstrap() {
     loadAll();
   });
 }
-bootstrap();
+// bootstrap();
+if (typeof window !== "undefined") {
+  supabase.auth.getSession().then(async ({ data }) => {
+    await hydrateAuthUser(data.session?.user.id ?? null);
+    authHydrated = true;
+    notifyAuth();
+    loadAll();
+  });
+}
 
 export const authStore = {
   getUser: () => auth.user,
@@ -311,6 +324,8 @@ export const authStore = {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error || !data.user) return null;
     await hydrateAuthUser(data.user.id);
+    authHydrated = true;
+    notifyAuth();
     await loadAll();
     await logActivity(auth.user?.name ?? email, "signed in");
     return auth.user?.role ?? null;
@@ -320,6 +335,7 @@ export const authStore = {
     if (name) await logActivity(name, "signed out");
     await supabase.auth.signOut();
     auth = { user: null };
+    authHydrated = true;
     notifyAuth();
   },
   subscribe: (cb: () => void) => {
@@ -333,5 +349,13 @@ export function useAuthUser() {
     (cb) => authStore.subscribe(cb),
     () => auth.user,
     () => null,
+  );
+}
+
+export function useAuthHydrated() {
+  return useSyncExternalStore(
+    (cb) => authStore.subscribe(cb),
+    () => authHydrated,
+    () => false,
   );
 }
