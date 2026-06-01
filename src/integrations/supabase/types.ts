@@ -49,6 +49,7 @@ export type Database = {
           overall_status: Database["public"]["Enums"]["clearance_status"]
           program: string
           reason: string
+          request_type: Database["public"]["Enums"]["request_type_t"]
           student_id: string
           student_name: string
           submitted_at: string
@@ -63,6 +64,7 @@ export type Database = {
           overall_status?: Database["public"]["Enums"]["clearance_status"]
           program: string
           reason: string
+          request_type?: Database["public"]["Enums"]["request_type_t"]
           student_id: string
           student_name: string
           submitted_at?: string
@@ -77,6 +79,7 @@ export type Database = {
           overall_status?: Database["public"]["Enums"]["clearance_status"]
           program?: string
           reason?: string
+          request_type?: Database["public"]["Enums"]["request_type_t"]
           student_id?: string
           student_name?: string
           submitted_at?: string
@@ -120,6 +123,114 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      fee_balances: {
+        Row: {
+          amount_due: number
+          created_at: string
+          id: string
+          item: string
+          student_id: string
+        }
+        Insert: {
+          amount_due?: number
+          created_at?: string
+          id?: string
+          item: string
+          student_id: string
+        }
+        Update: {
+          amount_due?: number
+          created_at?: string
+          id?: string
+          item?: string
+          student_id?: string
+        }
+        Relationships: []
+      }
+      hostel_assignments: {
+        Row: {
+          checked_out: boolean
+          created_at: string
+          damage_fee: number
+          id: string
+          room: string
+          student_id: string
+        }
+        Insert: {
+          checked_out?: boolean
+          created_at?: string
+          damage_fee?: number
+          id?: string
+          room: string
+          student_id: string
+        }
+        Update: {
+          checked_out?: boolean
+          created_at?: string
+          damage_fee?: number
+          id?: string
+          room?: string
+          student_id?: string
+        }
+        Relationships: []
+      }
+      ict_assets: {
+        Row: {
+          asset: string
+          created_at: string
+          id: string
+          replacement_cost: number
+          returned: boolean
+          student_id: string
+        }
+        Insert: {
+          asset: string
+          created_at?: string
+          id?: string
+          replacement_cost?: number
+          returned?: boolean
+          student_id: string
+        }
+        Update: {
+          asset?: string
+          created_at?: string
+          id?: string
+          replacement_cost?: number
+          returned?: boolean
+          student_id?: string
+        }
+        Relationships: []
+      }
+      library_loans: {
+        Row: {
+          book_title: string
+          created_at: string
+          due_date: string
+          fine_amount: number
+          id: string
+          returned: boolean
+          student_id: string
+        }
+        Insert: {
+          book_title: string
+          created_at?: string
+          due_date: string
+          fine_amount?: number
+          id?: string
+          returned?: boolean
+          student_id: string
+        }
+        Update: {
+          book_title?: string
+          created_at?: string
+          due_date?: string
+          fine_amount?: number
+          id?: string
+          returned?: boolean
+          student_id?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -202,6 +313,13 @@ export type Database = {
         | "Registrar"
         | "Hostel"
         | "Sports"
+      request_type_t:
+        | "library"
+        | "finance"
+        | "ict"
+        | "hostel"
+        | "general"
+        | "graduation"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -338,6 +456,14 @@ export const Constants = {
         "Registrar",
         "Hostel",
         "Sports",
+      ],
+      request_type_t: [
+        "library",
+        "finance",
+        "ict",
+        "hostel",
+        "general",
+        "graduation",
       ],
     },
   },

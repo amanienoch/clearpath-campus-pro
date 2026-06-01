@@ -2,16 +2,17 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { useAuthUser, useStore, store } from "@/lib/store";
-import { DEPARTMENTS, ClearanceRequest } from "@/lib/types";
+import { ClearanceRequest, REQUEST_TYPES, REQUEST_TYPE_LABEL, REQUEST_TYPE_DEPARTMENTS, RequestType } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
 import { QrCode } from "@/components/QrCode";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { LayoutDashboard, FileText, History as HistoryIcon, BadgeCheck, QrCode as QrIcon, Send, CheckCircle2, Clock, XCircle, Download } from "lucide-react";
+import { LayoutDashboard, FileText, BadgeCheck, QrCode as QrIcon, Send, CheckCircle2, Clock, XCircle, Download, AlertTriangle, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
+import { evaluateDepartment, NGN } from "@/lib/eligibility";
 
 export const Route = createFileRoute("/student")({
   head: () => ({ meta: [{ title: "Student Dashboard — E-Clearance" }] }),
@@ -74,11 +75,10 @@ function StudentPage() {
   );
 }
 
-
 function Hero({ user, active }: { user: string; active?: ClearanceRequest }) {
+  const total = active?.departments.length ?? 0;
   const approved = active?.departments.filter((d) => d.status === "approved").length ?? 0;
-  const total = DEPARTMENTS.length;
-  const pct = active ? Math.round((approved / total) * 100) : 0;
+  const pct = total ? Math.round((approved / total) * 100) : 0;
   return (
     <div className="relative overflow-hidden rounded-3xl hero-bg p-8 sm:p-10 text-primary-foreground shadow-elegant">
       <div className="absolute -top-10 -right-10 size-64 bg-white/10 rounded-full blur-3xl" />
@@ -88,7 +88,7 @@ function Hero({ user, active }: { user: string; active?: ClearanceRequest }) {
           <h2 className="font-display text-3xl sm:text-4xl font-bold">{user}</h2>
           <p className="mt-2 text-white/85 max-w-xl">
             {active
-              ? `Your clearance is ${pct}% complete. Track each department in real time below.`
+              ? `Your ${REQUEST_TYPE_LABEL[active.requestType]} is ${pct}% complete across ${total} department${total === 1 ? "" : "s"}.`
               : "You don't have any active clearance request yet. Start one in a few clicks."}
           </p>
         </div>
@@ -118,77 +118,105 @@ function Empty() {
 }
 
 function Overview({ req }: { req: ClearanceRequest }) {
+  const user = useAuthUser();
+  const data = useStore((s) => ({ loans: s.loans, fees: s.fees, assets: s.assets, hostel: s.hostel }));
   const stats = {
     approved: req.departments.filter((d) => d.status === "approved").length,
     pending: req.departments.filter((d) => d.status === "pending").length,
     rejected: req.departments.filter((d) => d.status === "rejected").length,
   };
+  const evals = useMemo(
+    () => req.departments.map((d) => evaluateDepartment(d.department, req.studentId, data)),
+    [req, data],
+  );
+  const totalOutstanding = evals.reduce((s, e) => s + e.totalCost, 0);
+  const blocking = evals.filter((e) => !e.eligible).length;
+
   return (
     <div className="space-y-6">
       <div className="grid sm:grid-cols-3 gap-4">
-        <Stat icon={<CheckCircle2 className="size-5 text-success" />} label="Approved" value={stats.approved} />
-        <Stat icon={<Clock className="size-5 text-warning" />} label="Pending" value={stats.pending} />
-        <Stat icon={<XCircle className="size-5 text-destructive" />} label="Rejected" value={stats.rejected} />
+        <Stat icon={<CheckCircle2 className="size-5 text-success" />} label="Departments Approved" value={`${stats.approved}/${req.departments.length}`} />
+        <Stat icon={<AlertTriangle className="size-5 text-warning" />} label="Blocking Obligations" value={blocking} />
+        <Stat icon={<XCircle className="size-5 text-destructive" />} label="Total Outstanding" value={NGN(totalOutstanding)} />
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        <div className="glass-strong rounded-2xl p-6">
-          <h3 className="font-display font-semibold text-lg mb-4">Department Status</h3>
-          <div className="space-y-3">
-            {req.departments.map((d, i) => (
-              <div key={d.department} className="flex items-center justify-between p-3 rounded-xl border bg-card/50 hover-lift animate-fade-up" style={{ animationDelay: `${i * 50}ms` }}>
-                <div>
-                  <div className="font-medium">{d.department}</div>
-                  {d.remarks && <div className="text-xs text-muted-foreground mt-0.5">{d.remarks}</div>}
-                </div>
-                <StatusBadge status={d.status} />
-              </div>
-            ))}
+      <div className="glass-strong rounded-2xl p-6 space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h3 className="font-display font-semibold text-lg">Eligibility Breakdown</h3>
+            <p className="text-sm text-muted-foreground">{REQUEST_TYPE_LABEL[req.requestType]} · {req.departments.length} department{req.departments.length === 1 ? "" : "s"}</p>
           </div>
+          {stats.rejected > 0 && (
+            <div className="text-xs px-3 py-1.5 rounded-full bg-destructive/10 text-destructive border border-destructive/30">
+              Action required from your side
+            </div>
+          )}
         </div>
-        <div className="glass-strong rounded-2xl p-6">
-          <h3 className="font-display font-semibold text-lg mb-4">Approval Timeline</h3>
-          <ol className="relative border-l-2 border-border ml-2 space-y-5">
-            <Timeline event="Request submitted" at={req.submittedAt} done />
-            {req.departments
-              .filter((d) => d.reviewedAt)
-              .sort((a, b) => (a.reviewedAt! < b.reviewedAt! ? -1 : 1))
-              .map((d) => (
-                <Timeline
-                  key={d.department}
-                  event={`${d.department} ${d.status}`}
-                  at={d.reviewedAt!}
-                  done={d.status === "approved"}
-                  bad={d.status === "rejected"}
-                />
-              ))}
-            {req.overallStatus === "approved" && (
-              <Timeline event="Clearance certificate issued" at={new Date().toISOString()} done celebrate />
-            )}
-          </ol>
+        <div className="space-y-3">
+          {req.departments.map((d, i) => {
+            const e = evals[i];
+            return (
+              <div key={d.department} className="rounded-xl border bg-card/50 p-4 hover-lift animate-fade-up" style={{ animationDelay: `${i * 50}ms` }}>
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-medium">{d.department}</div>
+                      <RecPill rec={e.recommendation} eligible={e.eligible} />
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-1">{e.summary}</div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {e.totalCost > 0 && (
+                      <div className="text-right">
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Outstanding</div>
+                        <div className="font-mono font-semibold text-destructive text-sm">{NGN(e.totalCost)}</div>
+                      </div>
+                    )}
+                    <StatusBadge status={d.status} />
+                  </div>
+                </div>
+                {e.obligations.length > 0 && (
+                  <ul className="mt-3 grid sm:grid-cols-2 gap-2">
+                    {e.obligations.map((o, j) => (
+                      <li key={j} className={`flex items-center justify-between text-xs px-3 py-2 rounded-lg border ${o.blocking ? "bg-destructive/5 border-destructive/20" : "bg-success/5 border-success/20"}`}>
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">{o.label}</div>
+                          {o.detail && <div className="text-muted-foreground truncate">{o.detail}</div>}
+                        </div>
+                        {o.cost > 0 && <div className="font-mono ml-2 shrink-0">{NGN(o.cost)}</div>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {d.remarks && (
+                  <div className="mt-3 text-xs px-3 py-2 rounded-lg bg-muted/50 border">
+                    <span className="font-semibold text-muted-foreground">Officer remarks: </span>{d.remarks}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
   );
 }
 
-function Timeline({ event, at, done, bad, celebrate }: { event: string; at: string; done?: boolean; bad?: boolean; celebrate?: boolean }) {
-  return (
-    <li className="ml-4">
-      <div className={`absolute -left-[7px] size-3 rounded-full ${bad ? "bg-destructive" : done ? "bg-success" : "bg-muted-foreground"} ring-4 ring-background`} />
-      <div className="font-medium text-sm">{event} {celebrate && "🎉"}</div>
-      <div className="text-xs text-muted-foreground">{new Date(at).toLocaleString()}</div>
-    </li>
-  );
+function RecPill({ rec, eligible }: { rec: "approve" | "action_required" | "review"; eligible: boolean }) {
+  if (rec === "approve" && eligible)
+    return <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-success/15 text-success border border-success/30 inline-flex items-center gap-1"><Sparkles className="size-3" /> Eligible</span>;
+  if (rec === "action_required")
+    return <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-destructive/15 text-destructive border border-destructive/30">Action Required</span>;
+  return <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-muted text-muted-foreground border">Manual Review</span>;
 }
 
 function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: number | string }) {
   return (
     <div className="glass-strong rounded-2xl p-5 flex items-center gap-4 hover-lift animate-fade-up">
       <div className="size-12 rounded-xl bg-accent grid place-items-center">{icon}</div>
-      <div>
+      <div className="min-w-0">
         <div className="text-sm text-muted-foreground">{label}</div>
-        <div className="font-display font-bold text-2xl">
+        <div className="font-display font-bold text-2xl truncate">
           {typeof value === "number" ? <AnimatedCounter value={value} /> : value}
         </div>
       </div>
@@ -198,8 +226,16 @@ function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; va
 
 function NewRequestForm({ onSubmitted, hasPending }: { onSubmitted?: () => void; hasPending?: boolean }) {
   const user = useAuthUser();
+  const data = useStore((s) => ({ loans: s.loans, fees: s.fees, assets: s.assets, hostel: s.hostel }));
   const [reason, setReason] = useState("");
+  const [requestType, setRequestType] = useState<RequestType>("graduation");
   const [submitting, setSubmitting] = useState(false);
+
+  const routedDepts = REQUEST_TYPE_DEPARTMENTS[requestType];
+  const previewEvals = useMemo(
+    () => (user ? routedDepts.map((d) => evaluateDepartment(d, user.id, data)) : []),
+    [requestType, user, data, routedDepts],
+  );
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,6 +255,7 @@ function NewRequestForm({ onSubmitted, hasPending }: { onSubmitted?: () => void;
         level: user.level ?? "N/A",
         email: user.email,
         reason: trimmed,
+        requestType,
       });
       toast.success(`Request ${req.clearance_id} submitted successfully`);
       setReason("");
@@ -231,27 +268,76 @@ function NewRequestForm({ onSubmitted, hasPending }: { onSubmitted?: () => void;
   };
 
   return (
-    <form onSubmit={submit} className="glass-strong rounded-2xl p-6 max-w-2xl space-y-5">
+    <form onSubmit={submit} className="glass-strong rounded-2xl p-6 max-w-3xl space-y-6">
       <div>
         <h3 className="font-display font-semibold text-xl">New Clearance Request</h3>
-        <p className="text-sm text-muted-foreground mt-1">Your request will be routed to all 6 departments for review.</p>
+        <p className="text-sm text-muted-foreground mt-1">Pick a request type — only the relevant departments will review it.</p>
       </div>
       {hasPending && (
-        <div className="rounded-xl border border-warning/40 bg-warning/10 text-warning px-4 py-3 text-sm">
+        <div className="rounded-xl border border-warning/40 bg-warning/10 text-warning-foreground px-4 py-3 text-sm">
           You already have a pending clearance request. Please wait for it to be completed before submitting another.
         </div>
       )}
+
+      <div className="space-y-2">
+        <Label>Request type</Label>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          {REQUEST_TYPES.map((rt) => {
+            const active = rt === requestType;
+            return (
+              <button
+                type="button"
+                key={rt}
+                onClick={() => setRequestType(rt)}
+                className={`text-left rounded-xl border p-3 transition-all ${active ? "border-primary bg-primary/5 shadow" : "hover:bg-muted/40"}`}
+              >
+                <div className="font-medium text-sm">{REQUEST_TYPE_LABEL[rt]}</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Routes to: {REQUEST_TYPE_DEPARTMENTS[rt].join(", ")}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="grid sm:grid-cols-2 gap-4">
         <Field label="Full Name" value={user?.name ?? ""} />
         <Field label="Matric No." value={user?.matricNo ?? ""} />
         <Field label="Program" value={user?.program ?? ""} />
         <Field label="Faculty" value={user?.faculty ?? ""} />
       </div>
+
       <div className="space-y-2">
         <Label htmlFor="reason">Reason for clearance</Label>
-        <Textarea id="reason" rows={4} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Final year graduation clearance" maxLength={500} />
+        <Textarea id="reason" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Final year graduation clearance" maxLength={500} />
         <div className="text-xs text-muted-foreground text-right">{reason.length}/500</div>
       </div>
+
+      {user && previewEvals.length > 0 && (
+        <div className="rounded-xl border bg-card/50 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles className="size-4 text-primary" />
+            <div className="text-sm font-semibold">Pre-submission eligibility check</div>
+          </div>
+          <div className="space-y-1.5">
+            {previewEvals.map((e) => (
+              <div key={e.department} className="flex items-center justify-between text-xs">
+                <span className="font-medium">{e.department}</span>
+                <span className={e.eligible ? "text-success" : "text-destructive"}>
+                  {e.eligible ? "Eligible" : `${e.outstandingCount} outstanding · ${NGN(e.totalCost)}`}
+                </span>
+              </div>
+            ))}
+          </div>
+          {previewEvals.some((e) => !e.eligible) && (
+            <p className="text-xs text-muted-foreground mt-3">
+              You can still submit — departments make the final decision based on their records and your remarks.
+            </p>
+          )}
+        </div>
+      )}
+
       <Button type="submit" disabled={submitting || hasPending} className="gradient-bg text-primary-foreground shadow-elegant">
         <Send className="size-4 mr-2" /> {submitting ? "Submitting…" : "Submit request"}
       </Button>
@@ -277,8 +363,8 @@ function History({ list }: { list: ClearanceRequest[] }) {
           <thead className="bg-muted/50 text-left">
             <tr>
               <th className="px-4 py-3 font-medium">Clearance ID</th>
+              <th className="px-4 py-3 font-medium">Type</th>
               <th className="px-4 py-3 font-medium">Submitted</th>
-              <th className="px-4 py-3 font-medium">Reason</th>
               <th className="px-4 py-3 font-medium">Progress</th>
               <th className="px-4 py-3 font-medium">Status</th>
             </tr>
@@ -289,9 +375,9 @@ function History({ list }: { list: ClearanceRequest[] }) {
               return (
                 <tr key={r.id} className="border-t hover:bg-muted/30">
                   <td className="px-4 py-3 font-mono font-semibold whitespace-nowrap">{r.clearanceId}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{REQUEST_TYPE_LABEL[r.requestType]}</td>
                   <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{new Date(r.submittedAt).toLocaleDateString()}</td>
-                  <td className="px-4 py-3 max-w-xs truncate">{r.reason}</td>
-                  <td className="px-4 py-3 whitespace-nowrap">{approved}/{DEPARTMENTS.length}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{approved}/{r.departments.length}</td>
                   <td className="px-4 py-3"><StatusBadge status={r.overallStatus} /></td>
                 </tr>
               );
@@ -322,7 +408,7 @@ function Certificate({ req }: { req: ClearanceRequest }) {
               </div>
               <div>
                 <div className="font-display font-bold text-2xl">University E-Clearance</div>
-                <div className="text-xs text-muted-foreground">Office of the Registrar</div>
+                <div className="text-xs text-muted-foreground">{REQUEST_TYPE_LABEL[req.requestType]}</div>
               </div>
             </div>
             <div className="text-right">

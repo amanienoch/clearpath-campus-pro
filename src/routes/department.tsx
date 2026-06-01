@@ -2,16 +2,17 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { useAuthUser, useStore, store } from "@/lib/store";
-import { ClearanceRequest, ClearanceStatus, Department } from "@/lib/types";
+import { ClearanceRequest, ClearanceStatus, Department, REQUEST_TYPE_LABEL } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { LayoutDashboard, Search, CheckCircle2, Clock, XCircle, Inbox, BadgeCheck } from "lucide-react";
+import { LayoutDashboard, Search, CheckCircle2, Clock, XCircle, Inbox, BadgeCheck, Sparkles, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
+import { evaluateDepartment, NGN } from "@/lib/eligibility";
 
 export const Route = createFileRoute("/department")({
   head: () => ({ meta: [{ title: "Department Dashboard — E-Clearance" }] }),
@@ -143,6 +144,7 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
 }
 
 function ReviewModal({ req, dept, onClose, reviewer }: { req: ClearanceRequest | null; dept?: Department; onClose: () => void; reviewer: string }) {
+  const data = useStore((s) => ({ loans: s.loans, fees: s.fees, assets: s.assets, hostel: s.hostel }));
   const [remarks, setRemarks] = useState("");
   const [busy, setBusy] = useState<"approved" | "rejected" | null>(null);
   useEffect(() => {
@@ -151,6 +153,12 @@ function ReviewModal({ req, dept, onClose, reviewer }: { req: ClearanceRequest |
       setRemarks(mine?.remarks ?? "");
     }
   }, [req, dept]);
+
+  const evalResult = useMemo(
+    () => (req && dept ? evaluateDepartment(dept, req.studentId, data) : null),
+    [req, dept, data],
+  );
+
   if (!req || !dept) return null;
   const mine = req.departments.find((d) => d.department === dept)!;
 
@@ -172,7 +180,7 @@ function ReviewModal({ req, dept, onClose, reviewer }: { req: ClearanceRequest |
 
   return (
     <Dialog open={!!req} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display text-2xl">Review request</DialogTitle>
         </DialogHeader>
@@ -183,12 +191,47 @@ function ReviewModal({ req, dept, onClose, reviewer }: { req: ClearanceRequest |
             <Info label="Program" value={req.program} />
             <Info label="Faculty" value={req.faculty} />
             <Info label="Clearance ID" value={req.clearanceId} mono />
-            <Info label="Submitted" value={new Date(req.submittedAt).toLocaleString()} />
+            <Info label="Type" value={REQUEST_TYPE_LABEL[req.requestType]} />
           </div>
           <div>
             <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Reason</div>
             <div className="text-sm">{req.reason}</div>
           </div>
+
+          {evalResult && (
+            <div className={`p-4 rounded-xl border ${evalResult.eligible ? "bg-success/5 border-success/30" : "bg-destructive/5 border-destructive/30"}`}>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  {evalResult.eligible ? <Sparkles className="size-4 text-success" /> : <AlertTriangle className="size-4 text-destructive" />}
+                  <div className="font-semibold text-sm">
+                    System Recommendation: {evalResult.eligible ? "Eligible for Approval" : "Action Required"}
+                  </div>
+                </div>
+                {evalResult.totalCost > 0 && (
+                  <div className="text-xs font-mono px-2 py-0.5 rounded-full bg-destructive/15 text-destructive border border-destructive/30">
+                    {NGN(evalResult.totalCost)} outstanding
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">{evalResult.summary}</p>
+              {evalResult.obligations.length > 0 && (
+                <ul className="mt-3 space-y-1.5">
+                  {evalResult.obligations.map((o, i) => (
+                    <li key={i} className={`flex items-center justify-between text-xs px-3 py-2 rounded-lg border ${o.blocking ? "bg-destructive/10 border-destructive/20" : "bg-success/10 border-success/20"}`}>
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">{o.label}</div>
+                        {o.detail && <div className="text-muted-foreground truncate">{o.detail}</div>}
+                      </div>
+                      {o.cost > 0 && <div className="font-mono ml-2 shrink-0">{NGN(o.cost)}</div>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="text-[11px] text-muted-foreground mt-3 italic">
+                You retain final approval authority — use this as a guideline alongside your records.
+              </p>
+            </div>
+          )}
 
           <div className="p-4 rounded-xl border bg-card flex items-center justify-between">
             <div>
