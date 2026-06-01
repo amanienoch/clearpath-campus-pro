@@ -2,16 +2,17 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { useAuthUser, useStore, store } from "@/lib/store";
-import { ClearanceRequest, ClearanceStatus, Department } from "@/lib/types";
+import { ClearanceRequest, ClearanceStatus, Department, REQUEST_TYPE_LABEL } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { LayoutDashboard, Search, CheckCircle2, Clock, XCircle, Inbox, BadgeCheck } from "lucide-react";
+import { LayoutDashboard, Search, CheckCircle2, Clock, XCircle, Inbox, BadgeCheck, Sparkles, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
+import { evaluateDepartment, NGN } from "@/lib/eligibility";
 
 export const Route = createFileRoute("/department")({
   head: () => ({ meta: [{ title: "Department Dashboard — E-Clearance" }] }),
