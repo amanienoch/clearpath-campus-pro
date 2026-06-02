@@ -2,10 +2,45 @@ import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { User } from "./types";
 
+type AdminFnPayload<T> = {
+  accessToken: string;
+  data: T;
+};
+
+async function requireAdmin(accessToken: string) {
+  if (!accessToken) throw new Error("Unauthorized");
+
+  const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
+  if (authError || !authData.user) throw new Error("Unauthorized");
+
+  const { data: role, error: roleError } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", authData.user.id)
+    .eq("role", "admin")
+    .maybeSingle();
+
+  if (roleError || !role) throw new Error("Forbidden: admin access required");
+  return authData.user;
+}
+
+function validateUserInput(u: User) {
+  if (!u.name?.trim()) throw new Error("Name is required");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(u.email)) throw new Error("Valid email is required");
+  if (!["student", "department", "admin"].includes(u.role)) throw new Error("Invalid role");
+  if (u.role === "department" && !u.department) throw new Error("Department is required for department users");
+  if (!u.id && (!u.password || u.password.length < 6)) {
+    throw new Error("Password must be at least 6 characters for new users");
+  }
+}
+
 export const secureUpsertUser = createServerFn({
   method: "POST",
 })
-  .handler(async ({ data: u }: { data: User }) => {
+  .handler(async ({ data: payload }: { data: AdminFnPayload<User> }) => {
+    await requireAdmin(payload.accessToken);
+    const u = payload.data;
+    validateUserInput(u);
     let uid = u.id;
 
     // Check if user exists in auth
@@ -72,7 +107,10 @@ export const secureUpsertUser = createServerFn({
 export const secureDeleteUser = createServerFn({
   method: "POST",
 })
-  .handler(async ({ data: id }: { data: string }) => {
+  .handler(async ({ data: payload }: { data: AdminFnPayload<string> }) => {
+    await requireAdmin(payload.accessToken);
+    const id = payload.data;
+    if (!id) throw new Error("User id is required");
     // Delete roles first
     await supabaseAdmin.from("user_roles").delete().eq("user_id", id);
     // Delete profile

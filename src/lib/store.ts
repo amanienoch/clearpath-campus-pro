@@ -276,13 +276,19 @@ export const store = {
 
   upsertUser: async (u: User) => {
     const { secureUpsertUser } = await import("./admin.functions");
-    await secureUpsertUser({ data: u });
+    const { data } = await supabase.auth.getSession();
+    const accessToken = data.session?.access_token;
+    if (!accessToken) throw new Error("You must be signed in as an admin to manage users");
+    await secureUpsertUser({ data: { accessToken, data: u } });
     await loadAll();
   },
 
   deleteUser: async (id: string) => {
     const { secureDeleteUser } = await import("./admin.functions");
-    await secureDeleteUser({ data: id });
+    const { data } = await supabase.auth.getSession();
+    const accessToken = data.session?.access_token;
+    if (!accessToken) throw new Error("You must be signed in as an admin to manage users");
+    await secureDeleteUser({ data: { accessToken, data: id } });
     await loadAll();
   },
 
