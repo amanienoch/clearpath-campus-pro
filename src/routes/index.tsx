@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { authStore, useAuthHydrated, useAuthUser } from "@/lib/store";
-import { ensureSeed } from "@/lib/seed.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,12 +17,7 @@ export const Route = createFileRoute("/")({
   component: LoginPage,
 });
 
-const DEMOS = [
-  { role: "Student", email: "glorian.bana@university.edu", password: "student123", path: "/student" },
-  { role: "Finance", email: "finance@university.edu", password: "dept123", path: "/department" },
-  { role: "Library", email: "library@university.edu", password: "dept123", path: "/department" },
-  { role: "Admin", email: "admin@university.edu", password: "admin123", path: "/admin" },
-];
+
 
 function LoginPage() {
   const navigate = useNavigate();
@@ -32,15 +26,13 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-useEffect(() => {
-  ensureSeed().catch(() => {});
-}, []);
+
 
   useEffect(() => {
     if (!authReady || !user) return;
     const dest = user.role === "student" ? "/student" : user.role === "admin" ? "/admin" : "/department";
     navigate({ to: dest });
-  }, [authReady, user, navigate]);
+  }, [authReady, user]);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const role = await authStore.login(email, password);
@@ -49,12 +41,7 @@ useEffect(() => {
     navigate({ to: role === "student" ? "/student" : role === "admin" ? "/admin" : "/department" });
   };
 
-  const quickLogin = async (e: string, p: string, path: string) => {
-    const role = await authStore.login(e, p);
-    if (!role) return toast.error("Demo accounts are still being prepared. Please try again in a moment.");
-    toast.success("Signed in as demo user");
-    navigate({ to: path });
-  };
+
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
@@ -123,25 +110,7 @@ useEffect(() => {
             </Button>
           </form>
 
-          <div className="space-y-3">
-            <div className="flex items-center gap-3 text-xs text-muted-foreground uppercase tracking-wider">
-              <div className="h-px flex-1 bg-border" /> Quick demo access <div className="h-px flex-1 bg-border" />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {DEMOS.map((d) => (
-                <button
-                  key={d.email}
-                  onClick={() => quickLogin(d.email, d.password, d.path)}
-                  className="glass rounded-xl px-3 py-2.5 text-left text-sm hover:shadow-elegant transition-all"
-                >
-                  <div className="font-medium flex items-center gap-1.5">
-                    <GraduationCap className="size-3.5 text-primary" /> {d.role}
-                  </div>
-                  <div className="text-xs text-muted-foreground truncate">{d.email}</div>
-                </button>
-              ))}
-            </div>
-          </div>
+
 
           <p className="text-center text-xs text-muted-foreground">
             <Link to="/verify" search={{ id: "" }} className="hover:text-foreground underline-offset-4 hover:underline">

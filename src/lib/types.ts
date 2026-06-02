@@ -101,3 +101,10 @@ export interface HostelAssignment {
   checkedOut: boolean;
   damageFee: number;
 }
+export interface SportsLoan {
+  id: string;
+  studentId: string;
+  equipment: string;
+  returned: boolean;
+  replacementCost: number;
+}

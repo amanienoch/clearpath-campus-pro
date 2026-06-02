@@ -144,9 +144,16 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
 }
 
 function ReviewModal({ req, dept, onClose, reviewer }: { req: ClearanceRequest | null; dept?: Department; onClose: () => void; reviewer: string }) {
-  const data = useStore((s) => ({ loans: s.loans, fees: s.fees, assets: s.assets, hostel: s.hostel }));
+  const loans = useStore((s) => s.loans);
+  const fees = useStore((s) => s.fees);
+  const assets = useStore((s) => s.assets);
+  const hostel = useStore((s) => s.hostel);
+  const sports = useStore((s) => s.sports);
+  
+  const data = useMemo(() => ({ loans, fees, assets, hostel, sports }), [loans, fees, assets, hostel, sports]);
   const [remarks, setRemarks] = useState("");
   const [busy, setBusy] = useState<"approved" | "rejected" | null>(null);
+
   useEffect(() => {
     if (req && dept) {
       const mine = req.departments.find((d) => d.department === dept);
@@ -159,20 +166,27 @@ function ReviewModal({ req, dept, onClose, reviewer }: { req: ClearanceRequest |
     [req, dept, data],
   );
 
-  if (!req || !dept) return null;
-  const mine = req.departments.find((d) => d.department === dept)!;
+  const mine = useMemo(() => {
+    if (!req || !dept) return null;
+    return req.departments.find((d) => d.department === dept) ?? null;
+  }, [req, dept]);
 
-  const act = (status: "approved" | "rejected") => {
+  const act = async (status: "approved" | "rejected") => {
+    if (!req || !dept || !mine) return;
     if (status === "rejected" && remarks.trim().length < 3) {
       return toast.error("Please add remarks before rejecting.");
     }
     if (remarks.length > 500) return toast.error("Remarks too long (max 500 characters)");
+    
     setBusy(status);
     try {
-      store.reviewDepartment(req.id, dept, status, remarks.trim() || (status === "approved" ? "Cleared." : ""), reviewer);
+      await store.reviewDepartment(req.id, dept, status, remarks.trim() || (status === "approved" ? "Cleared." : ""), reviewer);
       toast.success(`Request ${status}`);
       setRemarks("");
       onClose();
+    } catch (e) {
+      toast.error(`Failed to update request to ${status}`);
+      console.error(e);
     } finally {
       setBusy(null);
     }
@@ -181,77 +195,83 @@ function ReviewModal({ req, dept, onClose, reviewer }: { req: ClearanceRequest |
   return (
     <Dialog open={!!req} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="font-display text-2xl">Review request</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-4 p-4 rounded-xl bg-muted/40 border">
-            <Info label="Student" value={req.studentName} />
-            <Info label="Matric No" value={req.matricNo} />
-            <Info label="Program" value={req.program} />
-            <Info label="Faculty" value={req.faculty} />
-            <Info label="Clearance ID" value={req.clearanceId} mono />
-            <Info label="Type" value={REQUEST_TYPE_LABEL[req.requestType]} />
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Reason</div>
-            <div className="text-sm">{req.reason}</div>
-          </div>
-
-          {evalResult && (
-            <div className={`p-4 rounded-xl border ${evalResult.eligible ? "bg-success/5 border-success/30" : "bg-destructive/5 border-destructive/30"}`}>
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-2">
-                  {evalResult.eligible ? <Sparkles className="size-4 text-success" /> : <AlertTriangle className="size-4 text-destructive" />}
-                  <div className="font-semibold text-sm">
-                    System Recommendation: {evalResult.eligible ? "Eligible for Approval" : "Action Required"}
-                  </div>
-                </div>
-                {evalResult.totalCost > 0 && (
-                  <div className="text-xs font-mono px-2 py-0.5 rounded-full bg-destructive/15 text-destructive border border-destructive/30">
-                    {NGN(evalResult.totalCost)} outstanding
-                  </div>
-                )}
+        {req && dept && mine ? (
+          <>
+            <DialogHeader>
+              <DialogTitle className="font-display text-2xl">Review request</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-4 p-4 rounded-xl bg-muted/40 border">
+                <Info label="Student" value={req.studentName} />
+                <Info label="Matric No" value={req.matricNo} />
+                <Info label="Program" value={req.program} />
+                <Info label="Faculty" value={req.faculty} />
+                <Info label="Clearance ID" value={req.clearanceId} mono />
+                <Info label="Type" value={REQUEST_TYPE_LABEL[req.requestType]} />
               </div>
-              <p className="text-xs text-muted-foreground mt-2">{evalResult.summary}</p>
-              {evalResult.obligations.length > 0 && (
-                <ul className="mt-3 space-y-1.5">
-                  {evalResult.obligations.map((o, i) => (
-                    <li key={i} className={`flex items-center justify-between text-xs px-3 py-2 rounded-lg border ${o.blocking ? "bg-destructive/10 border-destructive/20" : "bg-success/10 border-success/20"}`}>
-                      <div className="min-w-0">
-                        <div className="font-medium truncate">{o.label}</div>
-                        {o.detail && <div className="text-muted-foreground truncate">{o.detail}</div>}
+              <div>
+                <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Reason</div>
+                <div className="text-sm">{req.reason}</div>
+              </div>
+
+              {evalResult && (
+                <div className={`p-4 rounded-xl border ${evalResult.eligible ? "bg-success/5 border-success/30" : "bg-destructive/5 border-destructive/30"}`}>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      {evalResult.eligible ? <Sparkles className="size-4 text-success" /> : <AlertTriangle className="size-4 text-destructive" />}
+                      <div className="font-semibold text-sm">
+                        System Recommendation: {evalResult.eligible ? "Eligible for Approval" : "Action Required"}
                       </div>
-                      {o.cost > 0 && <div className="font-mono ml-2 shrink-0">{NGN(o.cost)}</div>}
-                    </li>
-                  ))}
-                </ul>
+                    </div>
+                    {evalResult.totalCost > 0 && (
+                      <div className="text-xs font-mono px-2 py-0.5 rounded-full bg-destructive/15 text-destructive border border-destructive/30">
+                        {NGN(evalResult.totalCost)} outstanding
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">{evalResult.summary}</p>
+                  {evalResult.obligations.length > 0 && (
+                    <ul className="mt-3 space-y-1.5">
+                      {evalResult.obligations.map((o, i) => (
+                        <li key={i} className={`flex items-center justify-between text-xs px-3 py-2 rounded-lg border ${o.blocking ? "bg-destructive/10 border-destructive/20" : "bg-success/10 border-success/20"}`}>
+                          <div className="min-w-0">
+                            <div className="font-medium truncate">{o.label}</div>
+                            {o.detail && <div className="text-muted-foreground truncate">{o.detail}</div>}
+                          </div>
+                          {o.cost > 0 && <div className="font-mono ml-2 shrink-0">{NGN(o.cost)}</div>}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="text-[11px] text-muted-foreground mt-3 italic">
+                    You retain final approval authority — use this as a guideline alongside your records.
+                  </p>
+                </div>
               )}
-              <p className="text-[11px] text-muted-foreground mt-3 italic">
-                You retain final approval authority — use this as a guideline alongside your records.
-              </p>
+
+              <div className="p-4 rounded-xl border bg-card flex items-center justify-between">
+                <div>
+                  <div className="text-xs text-muted-foreground">Current {dept} status</div>
+                  <div className="font-medium mt-0.5">{mine.remarks || "Awaiting review"}</div>
+                </div>
+                <StatusBadge status={mine.status} />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="remarks">Remarks</Label>
+                <Textarea id="remarks" rows={3} placeholder="Add a note for the student…" value={remarks} onChange={(e) => setRemarks(e.target.value)} />
+              </div>
+
+              <div className="flex flex-wrap gap-2 justify-end">
+                <Button variant="outline" onClick={onClose} disabled={!!busy}>Close</Button>
+                <Button variant="destructive" onClick={() => act("rejected")} disabled={!!busy}><XCircle className="size-4 mr-1" /> {busy === "rejected" ? "Rejecting…" : "Reject"}</Button>
+                <Button className="gradient-bg text-primary-foreground" onClick={() => act("approved")} disabled={!!busy}><CheckCircle2 className="size-4 mr-1" /> {busy === "approved" ? "Approving…" : "Approve"}</Button>
+              </div>
             </div>
-          )}
-
-          <div className="p-4 rounded-xl border bg-card flex items-center justify-between">
-            <div>
-              <div className="text-xs text-muted-foreground">Current {dept} status</div>
-              <div className="font-medium mt-0.5">{mine.remarks || "Awaiting review"}</div>
-            </div>
-            <StatusBadge status={mine.status} />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="remarks">Remarks</Label>
-            <Textarea id="remarks" rows={3} placeholder="Add a note for the student…" value={remarks} onChange={(e) => setRemarks(e.target.value)} />
-          </div>
-
-          <div className="flex flex-wrap gap-2 justify-end">
-            <Button variant="outline" onClick={onClose} disabled={!!busy}>Close</Button>
-            <Button variant="destructive" onClick={() => act("rejected")} disabled={!!busy}><XCircle className="size-4 mr-1" /> {busy === "rejected" ? "Rejecting…" : "Reject"}</Button>
-            <Button className="gradient-bg text-primary-foreground" onClick={() => act("approved")} disabled={!!busy}><CheckCircle2 className="size-4 mr-1" /> {busy === "approved" ? "Approving…" : "Approve"}</Button>
-          </div>
-        </div>
+          </>
+        ) : (
+          <div className="py-6 text-center text-muted-foreground">No request selected</div>
+        )}
       </DialogContent>
     </Dialog>
   );

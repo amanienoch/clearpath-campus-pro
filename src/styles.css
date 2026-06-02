@@ -95,8 +95,8 @@
   --gradient-primary: linear-gradient(135deg, oklch(0.52 0.22 265), oklch(0.72 0.18 285));
   --gradient-hero: linear-gradient(135deg, oklch(0.52 0.22 265) 0%, oklch(0.55 0.2 280) 50%, oklch(0.72 0.18 285) 100%);
   --gradient-mesh: radial-gradient(at 20% 10%, oklch(0.72 0.18 285 / 0.35) 0px, transparent 50%),
-                   radial-gradient(at 80% 20%, oklch(0.52 0.22 265 / 0.3) 0px, transparent 50%),
-                   radial-gradient(at 60% 90%, oklch(0.65 0.18 195 / 0.25) 0px, transparent 50%);
+    radial-gradient(at 80% 20%, oklch(0.52 0.22 265 / 0.3) 0px, transparent 50%),
+    radial-gradient(at 60% 90%, oklch(0.65 0.18 195 / 0.25) 0px, transparent 50%);
   --shadow-glass: 0 8px 32px -8px oklch(0.18 0.04 265 / 0.12);
   --shadow-elegant: 0 20px 60px -20px oklch(0.52 0.22 265 / 0.35);
   --shadow-glow: 0 0 40px oklch(0.72 0.18 285 / 0.5);
@@ -144,8 +144,14 @@
 }
 
 @layer base {
-  * { border-color: var(--color-border); }
-  html { font-family: var(--font-sans); }
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    font-family: var(--font-sans);
+  }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
@@ -153,7 +159,15 @@
     background-attachment: fixed;
     min-height: 100vh;
   }
-  h1, h2, h3, h4, .font-display { font-family: var(--font-display); letter-spacing: -0.02em; }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
 }
 
 @layer components {
@@ -164,79 +178,165 @@
     border: 1px solid var(--glass-border);
     box-shadow: var(--shadow-glass);
   }
+
   .glass-strong {
     background: color-mix(in oklab, var(--card) 85%, transparent);
     backdrop-filter: blur(24px) saturate(180%);
     border: 1px solid var(--glass-border);
     box-shadow: var(--shadow-glass);
   }
+
   .gradient-text {
     background: var(--gradient-primary);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
-  .gradient-bg { background: var(--gradient-primary); }
-  .hero-bg { background: var(--gradient-hero); }
-  .shadow-elegant { box-shadow: var(--shadow-elegant); }
-  .shadow-glow { box-shadow: var(--shadow-glow); }
+
+  .gradient-bg {
+    background: var(--gradient-primary);
+  }
+
+  .hero-bg {
+    background: var(--gradient-hero);
+  }
+
+  .shadow-elegant {
+    box-shadow: var(--shadow-elegant);
+  }
+
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
 }
 
 @keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
 }
-.animate-float { animation: float 6s ease-in-out infinite; }
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
 
 @keyframes fade-up {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
-.animate-fade-up { animation: fade-up 0.5s ease-out both; }
+
+.animate-fade-up {
+  animation: fade-up 0.5s ease-out both;
+}
 
 @keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
-.animate-fade-in { animation: fade-in 0.4s ease-out both; }
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out both;
+}
 
 @keyframes scale-in {
-  from { opacity: 0; transform: scale(0.96); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
-.animate-scale-in { animation: scale-in 0.25s ease-out both; }
+
+.animate-scale-in {
+  animation: scale-in 0.25s ease-out both;
+}
 
 @keyframes shimmer {
-  0% { background-position: -400px 0; }
-  100% { background-position: 400px 0; }
+  0% {
+    background-position: -400px 0;
+  }
+
+  100% {
+    background-position: 400px 0;
+  }
 }
+
 .shimmer {
-  background: linear-gradient(
-    90deg,
-    color-mix(in oklab, var(--muted) 80%, transparent) 0%,
-    color-mix(in oklab, var(--accent) 60%, transparent) 50%,
-    color-mix(in oklab, var(--muted) 80%, transparent) 100%
-  );
+  background: linear-gradient(90deg,
+      color-mix(in oklab, var(--muted) 80%, transparent) 0%,
+      color-mix(in oklab, var(--accent) 60%, transparent) 50%,
+      color-mix(in oklab, var(--muted) 80%, transparent) 100%);
   background-size: 800px 100%;
   animation: shimmer 1.6s linear infinite;
 }
 
 @keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--warning) 55%, transparent); }
-  70% { box-shadow: 0 0 0 8px transparent; }
-  100% { box-shadow: 0 0 0 0 transparent; }
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--warning) 55%, transparent);
+  }
+
+  70% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
 }
-.pulse-ring { animation: pulse-ring 1.8s ease-out infinite; }
+
+.pulse-ring {
+  animation: pulse-ring 1.8s ease-out infinite;
+}
 
 @keyframes pop {
-  0% { transform: scale(0.6); opacity: 0; }
-  60% { transform: scale(1.15); opacity: 1; }
-  100% { transform: scale(1); }
-}
-.animate-pop { animation: pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
 
-.hover-lift { transition: transform 0.25s ease, box-shadow 0.25s ease; }
-.hover-lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-elegant); }
+  60% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-pop {
+  animation: pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.hover-lift {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-elegant);
+}
 
 .neon-glow {
   box-shadow:
@@ -244,14 +344,45 @@
     0 10px 40px -10px color-mix(in oklab, var(--primary-glow) 60%, transparent);
 }
 
-.row-hover { transition: background-color 0.2s ease; }
-.row-hover:hover { background-color: color-mix(in oklab, var(--accent) 35%, transparent); }
+.row-hover {
+  transition: background-color 0.2s ease;
+}
+
+.row-hover:hover {
+  background-color: color-mix(in oklab, var(--accent) 35%, transparent);
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-float, .animate-fade-up, .animate-fade-in, .animate-scale-in,
-  .shimmer, .pulse-ring, .animate-pop { animation: none !important; }
+
+  .animate-float,
+  .animate-fade-up,
+  .animate-fade-in,
+  .animate-scale-in,
+  .shimmer,
+  .pulse-ring,
+  .animate-pop {
+    animation: none !important;
+  }
 }
 
 @media print {
-  body { background: white !important; background-image: none !important; }
+  body * {
+    visibility: hidden;
+  }
+  .printable-certificate,
+  .printable-certificate * {
+    visibility: visible;
+  }
+  .printable-certificate {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    border: 2px solid #ddd !important;
+    padding: 2rem !important;
+    color: #111 !important;
+    background: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }

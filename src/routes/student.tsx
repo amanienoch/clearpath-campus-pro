@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { LayoutDashboard, FileText, BadgeCheck, QrCode as QrIcon, Send, CheckCircle2, Clock, XCircle, Download, AlertTriangle, Sparkles } from "lucide-react";
+import { LayoutDashboard, FileText, BadgeCheck, QrCode as QrIcon, Send, CheckCircle2, Clock, XCircle, Download, AlertTriangle, Sparkles, BookOpen, Wallet, Laptop, Home, Trophy } from "lucide-react";
 import { toast } from "sonner";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { evaluateDepartment, NGN } from "@/lib/eligibility";
@@ -31,7 +31,7 @@ function StudentPage() {
     [all, user],
   );
   const active = myRequests[0];
-  const latestApproved = useMemo(() => myRequests.find((r) => r.overallStatus === "approved"), [myRequests]);
+  const latestApproved = useMemo(() => active && active.overallStatus === "approved" ? active : undefined, [active]);
   const hasPending = myRequests.some((r) => r.overallStatus === "pending");
   const [tab, setTab] = useState("overview");
 
@@ -59,7 +59,7 @@ function StudentPage() {
             {active ? <Overview req={active} /> : <Empty />}
           </TabsContent>
           <TabsContent value="submit" className="mt-6">
-            <NewRequestForm hasPending={hasPending} onSubmitted={() => setTab("overview")} />
+            <NewRequestForm onSubmitted={() => setTab("overview")} />
           </TabsContent>
           <TabsContent value="history" className="mt-6">
             <History list={myRequests} />
@@ -119,18 +119,25 @@ function Empty() {
 
 function Overview({ req }: { req: ClearanceRequest }) {
   const user = useAuthUser();
-  const data = useStore((s) => ({ loans: s.loans, fees: s.fees, assets: s.assets, hostel: s.hostel }));
+  const loans = useStore((s) => s.loans);
+  const fees = useStore((s) => s.fees);
+  const assets = useStore((s) => s.assets);
+  const hostel = useStore((s) => s.hostel);
+  const sports = useStore((s) => s.sports);
+  const data = { loans, fees, assets, hostel, sports };
   const stats = {
     approved: req.departments.filter((d) => d.status === "approved").length,
     pending: req.departments.filter((d) => d.status === "pending").length,
     rejected: req.departments.filter((d) => d.status === "rejected").length,
   };
   const evals = useMemo(
-    () => req.departments.map((d) => evaluateDepartment(d.department, req.studentId, data)),
-    [req, data],
+    () => req.departments.map((d) => evaluateDepartment(d.department, user?.id || req.studentId, data)),
+    [req, data, user],
   );
   const totalOutstanding = evals.reduce((s, e) => s + e.totalCost, 0);
   const blocking = evals.filter((e) => !e.eligible).length;
+
+  const targetStudentId = user?.id || req.studentId;
 
   return (
     <div className="space-y-6">
@@ -139,6 +146,94 @@ function Overview({ req }: { req: ClearanceRequest }) {
         <Stat icon={<AlertTriangle className="size-5 text-warning" />} label="Blocking Obligations" value={blocking} />
         <Stat icon={<XCircle className="size-5 text-destructive" />} label="Total Outstanding" value={NGN(totalOutstanding)} />
       </div>
+
+      {totalOutstanding > 0 && (
+        <div className="glass-strong rounded-2xl p-6 border border-destructive/20 bg-destructive/5 space-y-4 animate-fade-up">
+          <div className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="size-5" />
+            <h3 className="font-display font-semibold text-lg">Outstanding Obligations (Attention Required)</h3>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            You have outstanding obligations that are currently blocking your clearance. Please clear these with the respective departments:
+          </p>
+          <div className="grid md:grid-cols-2 gap-4">
+            {/* Library Obligations */}
+            {loans.filter(l => l.studentId === targetStudentId && !l.returned).length > 0 && (
+              <div className="rounded-xl border bg-card p-4 space-y-2">
+                <div className="flex items-center gap-1.5 font-semibold text-sm text-primary"><BookOpen className="size-4" /> Library Books Overdue</div>
+                <ul className="space-y-1.5 text-xs">
+                  {loans.filter(l => l.studentId === targetStudentId && !l.returned).map(l => (
+                    <li key={l.id} className="flex justify-between border-b pb-1.5 last:border-0 last:pb-0">
+                      <span>{l.bookTitle} <span className="text-muted-foreground font-mono">(Due {new Date(l.dueDate).toLocaleDateString()})</span></span>
+                      {l.fineAmount > 0 && <span className="font-mono font-semibold text-destructive">{NGN(l.fineAmount)} fine</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Finance Obligations */}
+            {fees.filter(f => f.studentId === targetStudentId && f.amountDue > 0).length > 0 && (
+              <div className="rounded-xl border bg-card p-4 space-y-2">
+                <div className="flex items-center gap-1.5 font-semibold text-sm text-primary"><Wallet className="size-4" /> Finance Fees Outstanding</div>
+                <ul className="space-y-1.5 text-xs">
+                  {fees.filter(f => f.studentId === targetStudentId && f.amountDue > 0).map(f => (
+                    <li key={f.id} className="flex justify-between border-b pb-1.5 last:border-0 last:pb-0 font-medium">
+                      <span>{f.item}</span>
+                      <span className="font-mono font-semibold text-destructive">{NGN(f.amountDue)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* ICT Obligations */}
+            {assets.filter(a => a.studentId === targetStudentId && !a.returned).length > 0 && (
+              <div className="rounded-xl border bg-card p-4 space-y-2">
+                <div className="flex items-center gap-1.5 font-semibold text-sm text-primary"><Laptop className="size-4" /> ICT Assigned Assets</div>
+                <ul className="space-y-1.5 text-xs">
+                  {assets.filter(a => a.studentId === targetStudentId && !a.returned).map(a => (
+                    <li key={a.id} className="flex justify-between border-b pb-1.5 last:border-0 last:pb-0">
+                      <span>{a.asset}</span>
+                      {a.replacementCost > 0 && <span className="font-mono text-muted-foreground">({NGN(a.replacementCost)} replacement)</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Hostel Obligations */}
+            {hostel.filter(h => h.studentId === targetStudentId && (!h.checkedOut || h.damageFee > 0)).length > 0 && (
+              <div className="rounded-xl border bg-card p-4 space-y-2">
+                <div className="flex items-center gap-1.5 font-semibold text-sm text-primary"><Home className="size-4" /> Hostel Checkout Status</div>
+                <ul className="space-y-1.5 text-xs">
+                  {hostel.filter(h => h.studentId === targetStudentId && (!h.checkedOut || h.damageFee > 0)).map(h => (
+                    <li key={h.id} className="flex justify-between border-b pb-1.5 last:border-0 last:pb-0">
+                      <span>{h.room} {!h.checkedOut && <span className="text-destructive font-semibold">(Pending checkout)</span>}</span>
+                      {h.damageFee > 0 && <span className="font-mono font-semibold text-destructive">{NGN(h.damageFee)} charges</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Sports Obligations */}
+            {sports.filter(s => s.studentId === targetStudentId && !s.returned).length > 0 && (
+              <div className="rounded-xl border bg-card p-4 space-y-2">
+                <div className="flex items-center gap-1.5 font-semibold text-sm text-primary"><Trophy className="size-4" /> Sports Equipment Loans</div>
+                <ul className="space-y-1.5 text-xs">
+                  {sports.filter(s => s.studentId === targetStudentId && !s.returned).map(s => (
+                    <li key={s.id} className="flex justify-between border-b pb-1.5 last:border-0 last:pb-0">
+                      <span>{s.equipment}</span>
+                      {s.replacementCost > 0 && <span className="font-mono text-muted-foreground">({NGN(s.replacementCost)} replacement)</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="glass-strong rounded-2xl p-6 space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -224,12 +319,46 @@ function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; va
   );
 }
 
-function NewRequestForm({ onSubmitted, hasPending }: { onSubmitted?: () => void; hasPending?: boolean }) {
+function NewRequestForm({ onSubmitted }: { onSubmitted?: () => void }) {
   const user = useAuthUser();
-  const data = useStore((s) => ({ loans: s.loans, fees: s.fees, assets: s.assets, hostel: s.hostel }));
+  const loans = useStore((s) => s.loans);
+  const fees = useStore((s) => s.fees);
+  const assets = useStore((s) => s.assets);
+  const hostel = useStore((s) => s.hostel);
+  const sports = useStore((s) => s.sports);
+  const data = { loans, fees, assets, hostel, sports };
+  const allRequests = useStore((s) => s.requests);
   const [reason, setReason] = useState("");
   const [requestType, setRequestType] = useState<RequestType>("graduation");
   const [submitting, setSubmitting] = useState(false);
+
+  const myRequests = useMemo(
+    () =>
+      allRequests
+        .filter((r) => r.studentId === user?.id)
+        .slice()
+        .sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1)),
+    [allRequests, user],
+  );
+
+  const hasApprovedGraduation = useMemo(
+    () => myRequests.some((r) => r.requestType === "graduation" && r.overallStatus === "approved"),
+    [myRequests],
+  );
+
+  const hasPendingGraduation = useMemo(
+    () => myRequests.some((r) => r.requestType === "graduation" && r.overallStatus === "pending"),
+    [myRequests],
+  );
+
+  const hasPendingSameType = useMemo(
+    () => myRequests.some((r) => r.requestType === requestType && r.overallStatus === "pending"),
+    [myRequests, requestType],
+  );
+
+  const isBlocked =
+    (requestType === "graduation" && (hasApprovedGraduation || hasPendingGraduation)) ||
+    (requestType !== "graduation" && hasPendingSameType);
 
   const routedDepts = REQUEST_TYPE_DEPARTMENTS[requestType];
   const previewEvals = useMemo(
@@ -240,7 +369,20 @@ function NewRequestForm({ onSubmitted, hasPending }: { onSubmitted?: () => void;
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    if (hasPending) return toast.error("You already have a pending clearance request");
+
+    if (requestType === "graduation") {
+      if (hasApprovedGraduation) {
+        return toast.error("You already possess an approved Graduation Clearance Certificate. A new Graduation Clearance request is not required.");
+      }
+      if (hasPendingGraduation) {
+        return toast.error("You already have an active Graduation Clearance request in progress.");
+      }
+    } else {
+      if (hasPendingSameType) {
+        return toast.error(`You already have a pending ${REQUEST_TYPE_LABEL[requestType]} in progress.`);
+      }
+    }
+
     const trimmed = reason.trim();
     if (trimmed.length < 10) return toast.error("Please provide a reason (min 10 characters)");
     if (trimmed.length > 500) return toast.error("Reason is too long (max 500 characters)");
@@ -273,9 +415,22 @@ function NewRequestForm({ onSubmitted, hasPending }: { onSubmitted?: () => void;
         <h3 className="font-display font-semibold text-xl">New Clearance Request</h3>
         <p className="text-sm text-muted-foreground mt-1">Pick a request type — only the relevant departments will review it.</p>
       </div>
-      {hasPending && (
-        <div className="rounded-xl border border-warning/40 bg-warning/10 text-warning-foreground px-4 py-3 text-sm">
-          You already have a pending clearance request. Please wait for it to be completed before submitting another.
+
+      {requestType === "graduation" && hasApprovedGraduation && (
+        <div className="rounded-xl border border-warning/40 bg-warning/10 text-warning-foreground px-4 py-3 text-sm animate-fade-in">
+          You already possess an approved Graduation Clearance Certificate. A new Graduation Clearance request is not required.
+        </div>
+      )}
+
+      {requestType === "graduation" && hasPendingGraduation && (
+        <div className="rounded-xl border border-warning/40 bg-warning/10 text-warning-foreground px-4 py-3 text-sm animate-fade-in">
+          You already have an active Graduation Clearance request in progress.
+        </div>
+      )}
+
+      {requestType !== "graduation" && hasPendingSameType && (
+        <div className="rounded-xl border border-warning/40 bg-warning/10 text-warning-foreground px-4 py-3 text-sm animate-fade-in">
+          You already have a pending {REQUEST_TYPE_LABEL[requestType]} in progress.
         </div>
       )}
 
@@ -338,7 +493,7 @@ function NewRequestForm({ onSubmitted, hasPending }: { onSubmitted?: () => void;
         </div>
       )}
 
-      <Button type="submit" disabled={submitting || hasPending} className="gradient-bg text-primary-foreground shadow-elegant">
+      <Button type="submit" disabled={submitting || isBlocked} className="gradient-bg text-primary-foreground shadow-elegant">
         <Send className="size-4 mr-2" /> {submitting ? "Submitting…" : "Submit request"}
       </Button>
     </form>
@@ -398,7 +553,7 @@ function Certificate({ req }: { req: ClearanceRequest }) {
         <Button onClick={printIt} className="gradient-bg text-primary-foreground"><Download className="size-4 mr-2" /> Download / Print</Button>
         <Button variant="outline" asChild><Link to="/verify" search={{ id: req.clearanceId }}>Verify online</Link></Button>
       </div>
-      <div className="bg-white text-[oklch(0.18_0.04_265)] rounded-3xl p-10 sm:p-14 shadow-elegant border-4 border-primary/20 relative overflow-hidden print:shadow-none">
+      <div className="bg-white text-[oklch(0.18_0.04_265)] rounded-3xl p-10 sm:p-14 shadow-elegant border-4 border-primary/20 relative overflow-hidden print:shadow-none printable-certificate">
         <div className="absolute inset-0 pointer-events-none opacity-[0.04]" style={{ backgroundImage: "radial-gradient(circle at 30% 30%, currentColor 1px, transparent 1px)", backgroundSize: "20px 20px" }} />
         <div className="relative">
           <div className="flex items-center justify-between">

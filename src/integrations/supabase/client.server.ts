@@ -3,11 +3,28 @@
 // Use this for admin operations in server functions and server routes only.
 // For user-authenticated queries (with RLS), use the auth middleware instead.
 import { createClient } from '@supabase/supabase-js';
+import fs from 'fs';
 import type { Database } from './types';
 
 function createSupabaseAdminClient() {
-  const SUPABASE_URL = process.env.SUPABASE_URL;
-  const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  let SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  let SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      // Fallback for local development if process.env isn't populated
+      if (fs.existsSync('.env')) {
+        const envRaw = fs.readFileSync('.env', 'utf8');
+        envRaw.split('\\n').forEach((line) => {
+          const match = line.match(/^\\s*(VITE_)?(SUPABASE_[A-Z_]+)="?([^"]+)"?/);
+          if (match && match[2] === 'SUPABASE_URL') SUPABASE_URL = match[3];
+          if (match && match[2] === 'SUPABASE_SERVICE_ROLE_KEY') SUPABASE_SERVICE_ROLE_KEY = match[3];
+        });
+      }
+    } catch (e) {
+      // Ignore fs errors in edge environments
+    }
+  }
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     const missing = [

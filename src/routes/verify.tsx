@@ -28,6 +28,11 @@ function VerifyPage() {
 
   const match = submitted ? requests.find((r) => r.clearanceId.toLowerCase() === submitted.toLowerCase()) : null;
 
+  const studentRequests = match
+    ? requests.filter((r) => r.studentId === match.studentId)
+    : [];
+  const isMostRecent = match && studentRequests.length > 0 && studentRequests[0].id === match.id;
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="glass border-b">
@@ -74,7 +79,7 @@ function VerifyPage() {
         {submitted && (
           <div className="mt-8">
             {match ? (
-              match.overallStatus === "approved" ? (
+              match.overallStatus === "approved" && isMostRecent ? (
                 <div className="glass-strong rounded-3xl p-8 border-2 border-success/30 animate-fade-up">
                   <div className="flex items-center gap-3 text-success">
                     <BadgeCheck className="size-10" />
@@ -97,6 +102,24 @@ function VerifyPage() {
                         ✓ {d.department}
                       </span>
                     ))}
+                  </div>
+                </div>
+              ) : match.overallStatus === "approved" && !isMostRecent ? (
+                <div className="glass-strong rounded-3xl p-8 border-2 border-warning/40">
+                  <div className="flex items-center gap-3">
+                    <div className="size-12 rounded-full bg-warning/15 text-warning grid place-items-center">
+                      <XCircle className="size-6 text-destructive" />
+                    </div>
+                    <div>
+                      <div className="font-display font-bold text-2xl text-destructive">Superseded Certificate</div>
+                      <div className="text-sm text-muted-foreground">This certificate has been superseded by a newer clearance request and is no longer active.</div>
+                    </div>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-4 mt-6">
+                    <Info label="Student" value={match.studentName} />
+                    <Info label="Clearance ID" value={match.clearanceId} mono />
+                    <Info label="Matric No" value={match.matricNo} />
+                    <Info label="Status" value="Superseded (No longer valid)" />
                   </div>
                 </div>
               ) : (

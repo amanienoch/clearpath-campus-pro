@@ -4,6 +4,7 @@ import {
   HostelAssignment,
   IctAsset,
   LibraryLoan,
+  SportsLoan,
 } from "./types";
 
 export interface ObligationLine {
@@ -28,6 +29,7 @@ export interface ObligationData {
   fees: FeeBalance[];
   assets: IctAsset[];
   hostel: HostelAssignment[];
+  sports: SportsLoan[];
 }
 
 export const NGN = (n: number) =>
@@ -152,15 +154,39 @@ export function evaluateDepartment(
         recommendation: "review",
         summary: "Manual review required for academic standing & records.",
       };
-    case "Sports":
+    case "Sports": {
+      const mine = data.sports.filter((s) => s.studentId === studentId);
+      if (mine.length === 0) {
+        return {
+          department,
+          eligible: true,
+          outstandingCount: 0,
+          totalCost: 0,
+          obligations: [],
+          recommendation: "approve",
+          summary: "No sports equipment loans on record.",
+        };
+      }
+      const obligations: ObligationLine[] = mine.map((s) => ({
+        label: s.equipment,
+        detail: s.returned ? "Returned" : "Not returned",
+        cost: s.returned ? 0 : Number(s.replacementCost),
+        blocking: !s.returned,
+      }));
+      const outstanding = obligations.filter((o) => o.blocking);
+      const totalCost = outstanding.reduce((acc, o) => acc + o.cost, 0);
+      const eligible = outstanding.length === 0;
       return {
         department,
-        eligible: true,
-        outstandingCount: 0,
-        totalCost: 0,
-        obligations: [],
-        recommendation: "approve",
-        summary: "No sports equipment loans on record.",
+        eligible,
+        outstandingCount: outstanding.length,
+        totalCost,
+        obligations,
+        recommendation: eligible ? "approve" : "action_required",
+        summary: eligible
+          ? "All sports equipment returned in good standing."
+          : `${outstanding.length} item(s) not returned. Replacement liability ${NGN(totalCost)}.`,
       };
+    }
   }
 }

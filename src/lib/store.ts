@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   ActivityItem,
@@ -24,12 +24,13 @@ interface State {
   fees: FeeBalance[];
   assets: IctAsset[];
   hostel: HostelAssignment[];
+  sports: import("./types").SportsLoan[];
   hydrated: boolean;
 }
 
 let state: State = {
   users: [], requests: [], activity: [],
-  loans: [], fees: [], assets: [], hostel: [],
+  loans: [], fees: [], assets: [], hostel: [], sports: [],
   hydrated: false,
 };
 const listeners = new Set<() => void>();
@@ -100,7 +101,7 @@ function profileRowToUser(p: Record<string, unknown>, role: Role): User {
 }
 
 async function loadAll() {
-  const [profilesRes, rolesRes, reqsRes, revsRes, actsRes, loansRes, feesRes, assetsRes, hostelRes] = await Promise.all([
+  const [profilesRes, rolesRes, reqsRes, revsRes, actsRes, loansRes, feesRes, assetsRes, hostelRes, sportsRes] = await Promise.all([
     supabase.from("profiles").select("*"),
     supabase.from("user_roles").select("user_id, role"),
     supabase.from("clearance_requests").select("*").order("submitted_at", { ascending: false }),
@@ -110,6 +111,7 @@ async function loadAll() {
     supabase.from("fee_balances").select("*"),
     supabase.from("ict_assets").select("*"),
     supabase.from("hostel_assignments").select("*"),
+    supabase.from("sports_loans").select("*"),
   ]);
 
   const roleMap = new Map<string, Role>();
@@ -165,7 +167,15 @@ async function loadAll() {
     damageFee: Number(h.damage_fee ?? 0),
   }));
 
-  setState(() => ({ users, requests, activity, loans, fees, assets, hostel, hydrated: true }));
+  const sports: import("./types").SportsLoan[] = (sportsRes.data ?? []).map((s) => ({
+    id: s.id as string,
+    studentId: s.student_id as string,
+    equipment: s.equipment as string,
+    returned: s.returned as boolean,
+    replacementCost: Number(s.replacement_cost ?? 0),
+  }));
+
+  setState(() => ({ users, requests, activity, loans, fees, assets, hostel, sports, hydrated: true }));
 }
 
 let realtimeAttached = false;
@@ -182,6 +192,7 @@ function attachRealtime() {
     .on("postgres_changes", { event: "*", schema: "public", table: "fee_balances" }, () => loadAll())
     .on("postgres_changes", { event: "*", schema: "public", table: "ict_assets" }, () => loadAll())
     .on("postgres_changes", { event: "*", schema: "public", table: "hostel_assignments" }, () => loadAll())
+    .on("postgres_changes", { event: "*", schema: "public", table: "sports_loans" }, () => loadAll())
     .subscribe();
 }
 
@@ -239,31 +250,125 @@ export const store = {
   },
 
   upsertUser: async (u: User) => {
-    const { error } = await supabase.from("profiles").upsert({
-      id: u.id, name: u.name, email: u.email,
-      department: u.department ?? null, matric_no: u.matricNo ?? null,
-      program: u.program ?? null, faculty: u.faculty ?? null, level: u.level ?? null,
-    });
-    if (error) throw error;
-    await supabase.from("user_roles").delete().eq("user_id", u.id);
-    await supabase.from("user_roles").insert({ user_id: u.id, role: u.role });
-    await logActivity("Admin", "saved user", u.email);
+    const { secureUpsertUser } = await import("./admin.functions");
+    await secureUpsertUser({ data: u });
     await loadAll();
   },
 
   deleteUser: async (id: string) => {
-    await supabase.from("user_roles").delete().eq("user_id", id);
-    await supabase.from("profiles").delete().eq("id", id);
-    await logActivity("Admin", "deleted user", id);
+    const { secureDeleteUser } = await import("./admin.functions");
+    await secureDeleteUser({ data: id });
+    await loadAll();
+  },
+
+  upsertFeeBalance: async (item: { id?: string; studentId: string; item: string; amountDue: number }) => {
+    const { error } = await supabase.from("fee_balances").upsert({
+      id: item.id || undefined,
+      student_id: item.studentId,
+      item: item.item,
+      amount_due: item.amountDue,
+    });
+    if (error) throw error;
+    await loadAll();
+  },
+
+  deleteFeeBalance: async (id: string) => {
+    const { error } = await supabase.from("fee_balances").delete().eq("id", id);
+    if (error) throw error;
+    await loadAll();
+  },
+
+  upsertLibraryLoan: async (item: { id?: string; studentId: string; bookTitle: string; dueDate: string; returned: boolean; fineAmount: number }) => {
+    const { error } = await supabase.from("library_loans").upsert({
+      id: item.id || undefined,
+      student_id: item.studentId,
+      book_title: item.bookTitle,
+      due_date: item.dueDate,
+      returned: item.returned,
+      fine_amount: item.fineAmount,
+    });
+    if (error) throw error;
+    await loadAll();
+  },
+
+  deleteLibraryLoan: async (id: string) => {
+    const { error } = await supabase.from("library_loans").delete().eq("id", id);
+    if (error) throw error;
+    await loadAll();
+  },
+
+  upsertIctAsset: async (item: { id?: string; studentId: string; asset: string; returned: boolean; replacementCost: number }) => {
+    const { error } = await supabase.from("ict_assets").upsert({
+      id: item.id || undefined,
+      student_id: item.studentId,
+      asset: item.asset,
+      returned: item.returned,
+      replacement_cost: item.replacementCost,
+    });
+    if (error) throw error;
+    await loadAll();
+  },
+
+  deleteIctAsset: async (id: string) => {
+    const { error } = await supabase.from("ict_assets").delete().eq("id", id);
+    if (error) throw error;
+    await loadAll();
+  },
+
+  upsertHostelAssignment: async (item: { id?: string; studentId: string; room: string; checkedOut: boolean; damageFee: number }) => {
+    const { error } = await supabase.from("hostel_assignments").upsert({
+      id: item.id || undefined,
+      student_id: item.studentId,
+      room: item.room,
+      checked_out: item.checkedOut,
+      damage_fee: item.damageFee,
+    });
+    if (error) throw error;
+    await loadAll();
+  },
+
+  deleteHostelAssignment: async (id: string) => {
+    const { error } = await supabase.from("hostel_assignments").delete().eq("id", id);
+    if (error) throw error;
+    await loadAll();
+  },
+
+  upsertSportsLoan: async (item: { id?: string; studentId: string; equipment: string; returned: boolean; replacementCost: number }) => {
+    const { error } = await supabase.from("sports_loans").upsert({
+      id: item.id || undefined,
+      student_id: item.studentId,
+      equipment: item.equipment,
+      returned: item.returned,
+      replacement_cost: item.replacementCost,
+    });
+    if (error) throw error;
+    await loadAll();
+  },
+
+  deleteSportsLoan: async (id: string) => {
+    const { error } = await supabase.from("sports_loans").delete().eq("id", id);
+    if (error) throw error;
     await loadAll();
   },
 };
 
 export function useStore<T>(selector: (s: State) => T): T {
+  const selectorRef = useRef(selector);
+  selectorRef.current = selector;
+
+  const getSnapshot = useMemo(() => {
+    return () => selectorRef.current(state);
+  }, []);
+
+  const getServerSnapshot = useMemo(() => {
+    const emptyState: State = { users: [], requests: [], activity: [], loans: [], fees: [], assets: [], hostel: [], sports: [], hydrated: false };
+    return () => selectorRef.current(emptyState);
+  }, []);
+
   return useSyncExternalStore(
     store.subscribe,
-    () => selector(state),
-    () => selector({ users: [], requests: [], activity: [], loans: [], fees: [], assets: [], hostel: [], hydrated: false }),
+    getSnapshot,
+    getServerSnapshot,
   );
 }
 
@@ -344,18 +449,25 @@ export const authStore = {
   },
 };
 
+const subscribeAuth = (cb: () => void) => authStore.subscribe(cb);
+const getAuthSnapshot = () => auth.user;
+const getAuthServerSnapshot = () => null;
+
 export function useAuthUser() {
   return useSyncExternalStore(
-    (cb) => authStore.subscribe(cb),
-    () => auth.user,
-    () => null,
+    subscribeAuth,
+    getAuthSnapshot,
+    getAuthServerSnapshot,
   );
 }
 
+const getHydratedSnapshot = () => authHydrated;
+const getHydratedServerSnapshot = () => false;
+
 export function useAuthHydrated() {
   return useSyncExternalStore(
-    (cb) => authStore.subscribe(cb),
-    () => authHydrated,
-    () => false,
+    subscribeAuth,
+    getHydratedSnapshot,
+    getHydratedServerSnapshot,
   );
 }
