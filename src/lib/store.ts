@@ -488,15 +488,15 @@ export const authStore = {
   login: async (identifier: string, password: string): Promise<Role | null> => {
     let emailToUse = identifier;
 
-    // Check if the identifier matches a student's matric_no
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("email")
-      .eq("matric_no", identifier)
-      .maybeSingle();
-
-    if (profile) {
-      emailToUse = profile.email as string;
+    // Resolve matric number to email via server function to bypass RLS!
+    try {
+      const { resolveMatricToEmail } = await import("./verify.functions");
+      const resolvedEmail = await resolveMatricToEmail({ data: identifier });
+      if (resolvedEmail) {
+        emailToUse = resolvedEmail;
+      }
+    } catch (e) {
+      console.error("resolveMatricToEmail error", e);
     }
 
     const { data, error } = await supabase.auth.signInWithPassword({ email: emailToUse, password });

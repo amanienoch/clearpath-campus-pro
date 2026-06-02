@@ -63,3 +63,13 @@ export const verifyClearanceCertificate = createServerFn({ method: "POST" })
       isMostRecent: latest?.id === request.id,
     };
   });
+
+export const resolveMatricToEmail = createServerFn({ method: "POST" })
+  .handler(async ({ data: matricNo }: { data: string }): Promise<string | null> => {
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("email")
+      .eq("matric_no", matricNo)
+      .maybeSingle();
+    return profile?.email ?? null;
+  });
