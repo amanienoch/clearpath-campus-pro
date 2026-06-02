@@ -33,7 +33,7 @@ export interface ObligationData {
 }
 
 export const NGN = (n: number) =>
-  new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(n);
+  "KES " + new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(n);
 
 export function evaluateDepartment(
   department: Department,

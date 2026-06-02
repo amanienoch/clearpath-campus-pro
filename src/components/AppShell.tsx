@@ -1,13 +1,34 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
-import { authStore, useAuthHydrated, useAuthUser } from "@/lib/store";
+import { useEffect, useState, useMemo, type ReactNode } from "react";
+import { authStore, useAuthHydrated, useAuthUser, useStore } from "@/lib/store";
 import { Role } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, LogOut, Menu, Moon, ShieldCheck, Sun, X } from "lucide-react";
+import { GraduationCap, LogOut, Menu, Moon, ShieldCheck, Sun, X, PanelLeftClose, PanelLeftOpen, Bell, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface NavItem { to: string; label: string; icon: ReactNode; }
+
+interface SearchResult {
+  id: string;
+  title: string;
+  subtitle: string;
+  category: "Actions" | "Students" | "Requests" | "Certificates" | "Users" | "Departments";
+  action: () => void;
+}
+
+function formatRelativeTime(dateStr: string) {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
 
 export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title: string; children: ReactNode; role?: Role }) {
   const user = useAuthUser();
@@ -17,11 +38,50 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
   const [open, setOpen] = useState(false);
   const [dark, setDark] = useState(false);
 
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("sidebar-collapsed") === "true";
+    }
+    return false;
+  });
+
+  const toggleSidebar = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("sidebar-collapsed", String(next));
+      return next;
+    });
+  };
+
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [readIds, setReadIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("clearance-read-ids");
+    if (saved) {
+      try {
+        setReadIds(JSON.parse(saved));
+      } catch (e) {
+        // ignore
+      }
+    }
+  }, []);
+
+  const activity = useStore((s) => s.activity);
+  const unreadCount = activity.filter((a) => !readIds.includes(a.id)).length;
+
+  const markAllAsRead = () => {
+    const allIds = activity.map((a) => a.id);
+    setReadIds(allIds);
+    localStorage.setItem("clearance-read-ids", JSON.stringify(allIds));
+  };
+
   useEffect(() => {
     const saved = localStorage.getItem("theme") === "dark";
     setDark(saved);
     document.documentElement.classList.toggle("dark", saved);
   }, []);
+
   const toggleTheme = () => {
     const next = !dark;
     setDark(next);
@@ -42,25 +102,225 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
     }
   }, [authReady, user, navigate, role]);
 
+  // --- Command Palette State & Search ---
+  const [showPalette, setShowPalette] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  const allRequests = useStore((s) => s.requests);
+  const allUsers = useStore((s) => s.users);
+
+  // Global event listener for Ctrl+K / Cmd+K
+  useEffect(() => {
+    const handleGlobalKeys = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setShowPalette((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKeys);
+    return () => window.removeEventListener("keydown", handleGlobalKeys);
+  }, []);
+
+  // Build the complete search index
+  const searchIndex = useMemo((): SearchResult[] => {
+    const list: SearchResult[] = [];
+
+    // 1. Actions
+    list.push(
+      {
+        id: "act-analytics",
+        title: "Open Executive Analytics",
+        subtitle: "View visual metrics and department rates",
+        category: "Actions",
+        action: () => {
+          navigate({ to: "/admin", search: { tab: "analytics" } as any });
+        }
+      },
+      {
+        id: "act-create-user",
+        title: "Create Student / User Account",
+        subtitle: "Register a new profile in user management",
+        category: "Actions",
+        action: () => {
+          navigate({ to: "/admin", search: { tab: "users", openNew: "true" } as any });
+        }
+      },
+      {
+        id: "act-add-obligation",
+        title: "Add Obligation Record",
+        subtitle: "Create library loan, finance charge, or sport loan",
+        category: "Actions",
+        action: () => {
+          navigate({ to: "/admin", search: { tab: "obligations", openNew: "true" } as any });
+        }
+      },
+      {
+        id: "act-user-management",
+        title: "Open User Management",
+        subtitle: "Inspect student profiles, officers, and admins",
+        category: "Actions",
+        action: () => {
+          navigate({ to: "/admin", search: { tab: "users" } as any });
+        }
+      },
+      {
+        id: "act-cert-verify",
+        title: "Verify Certificate Online",
+        subtitle: "Inspect clearance hashes and verify legitimacy",
+        category: "Actions",
+        action: () => {
+          navigate({ to: "/verify" });
+        }
+      }
+    );
+
+    // 2. Students
+    allUsers.filter((u) => u.role === "student").forEach((s) => {
+      list.push({
+        id: `student-${s.id}`,
+        title: s.name,
+        subtitle: `Matric: ${s.matricNo || "N/A"} · Email: ${s.email}`,
+        category: "Students",
+        action: () => {
+          navigate({ to: "/admin", search: { tab: "users", search: s.name } as any });
+        }
+      });
+    });
+
+    // 3. Requests
+    allRequests.forEach((r) => {
+      list.push({
+        id: `req-${r.id}`,
+        title: `${r.studentName} — ${r.clearanceId}`,
+        subtitle: `${r.requestType.toUpperCase()} Clearance · Status: ${r.overallStatus.toUpperCase()}`,
+        category: "Requests",
+        action: () => {
+          if (user?.role === "admin") {
+            navigate({ to: "/admin", search: { tab: "overview", search: r.clearanceId } as any });
+          } else if (user?.role === "department") {
+            navigate({ to: "/department", search: { search: r.clearanceId } as any });
+          } else {
+            navigate({ to: "/student" });
+          }
+        }
+      });
+    });
+
+    // 4. Certificates
+    allRequests.filter((r) => r.overallStatus === "approved").forEach((r) => {
+      list.push({
+        id: `cert-${r.id}`,
+        title: `Certificate: ${r.studentName}`,
+        subtitle: `ID: ${r.clearanceId} · Verified Digital E-Clearance`,
+        category: "Certificates",
+        action: () => {
+          navigate({ to: "/verify", search: { id: r.clearanceId } as any });
+        }
+      });
+    });
+
+    // 5. Users
+    allUsers.forEach((u) => {
+      list.push({
+        id: `user-${u.id}`,
+        title: u.name,
+        subtitle: `Role: ${u.role.toUpperCase()} ${u.department ? `(${u.department})` : ""} · ${u.email}`,
+        category: "Users",
+        action: () => {
+          navigate({ to: "/admin", search: { tab: "users", search: u.name } as any });
+        }
+      });
+    });
+
+    // 6. Departments
+    ["Finance", "Library", "ICT", "Hostel", "Sports", "Registrar"].forEach((d) => {
+      list.push({
+        id: `dept-${d}`,
+        title: `${d} Department`,
+        subtitle: "University Clearance Reviewing Section",
+        category: "Departments",
+        action: () => {
+          if (user?.role === "department" && user.department === d) {
+            navigate({ to: "/department" });
+          } else {
+            navigate({ to: "/admin", search: { tab: "obligations", search: d } as any });
+          }
+        }
+      });
+    });
+
+    return list;
+  }, [allRequests, allUsers, user]);
+
+  // Filter items matching query
+  const filteredItems = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return searchIndex.filter((item) => item.category === "Actions");
+    }
+    const q = searchQuery.toLowerCase();
+    return searchIndex.filter(
+      (item) =>
+        item.title.toLowerCase().includes(q) ||
+        item.subtitle.toLowerCase().includes(q) ||
+        item.category.toLowerCase().includes(q)
+    );
+  }, [searchQuery, searchIndex]);
+
+  // Reset keyboard selected index when filter query changes
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [searchQuery]);
+
+  // Bind keyboard navigation to Command Palette
+  useEffect(() => {
+    if (!showPalette) return;
+    const handlePaletteKeys = (e: KeyboardEvent) => {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedIndex((prev) => (prev + 1) % Math.max(1, filteredItems.length));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedIndex((prev) => (prev - 1 + filteredItems.length) % Math.max(1, filteredItems.length));
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (filteredItems[selectedIndex]) {
+          filteredItems[selectedIndex].action();
+          setShowPalette(false);
+          setSearchQuery("");
+        }
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        setShowPalette(false);
+        setSearchQuery("");
+      }
+    };
+    window.addEventListener("keydown", handlePaletteKeys);
+    return () => window.removeEventListener("keydown", handlePaletteKeys);
+  }, [showPalette, filteredItems, selectedIndex]);
+
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex bg-background text-foreground transition-colors duration-300">
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed lg:sticky top-0 left-0 h-screen w-72 z-40 transition-transform glass-strong border-r flex flex-col",
-          open ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+          "fixed lg:sticky top-0 left-0 h-screen z-40 transition-all duration-300 glass-strong border-r flex flex-col shrink-0",
+          isCollapsed ? "lg:w-20" : "lg:w-72",
+          open ? "translate-x-0 w-72" : "-translate-x-full lg:translate-x-0 w-72",
         )}
       >
-        <div className="p-6 flex items-center gap-3">
-          <div className="size-10 rounded-xl gradient-bg grid place-items-center shadow-glow">
-            <ShieldCheck className="size-5 text-primary-foreground" />
+        <div className={cn("p-6 flex items-center shrink-0 border-b border-border/40 h-16", isCollapsed ? "justify-center px-4" : "gap-3")}>
+          <div className="size-10 rounded-xl gradient-bg grid place-items-center shadow-glow shrink-0">
+            <ShieldCheck className="size-5 text-primary-foreground animate-pulse" />
           </div>
-          <div>
-            <div className="font-display font-bold text-lg leading-none">E-Clearance</div>
-            <div className="text-xs text-muted-foreground mt-1">University Portal</div>
-          </div>
+          {!isCollapsed && (
+            <div className="animate-fade-in truncate">
+              <div className="font-display font-bold text-base leading-none tracking-tight">E-Clearance</div>
+              <div className="text-[10px] text-muted-foreground mt-1 font-medium tracking-wide uppercase">University Portal</div>
+            </div>
+          )}
         </div>
-        <nav className="px-4 py-4 flex-1 space-y-1">
+        <nav className="px-3 py-4 flex-1 space-y-1 overflow-y-auto custom-scrollbar">
           {nav.map((item) => {
             const active = path === item.to || (item.to !== "/" && path.startsWith(item.to));
             return (
@@ -68,62 +328,182 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
                 key={item.to}
                 to={item.to}
                 onClick={() => setOpen(false)}
+                title={isCollapsed ? item.label : undefined}
                 className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all",
+                  "flex items-center rounded-xl text-sm font-medium transition-all relative overflow-hidden group/item h-11",
+                  isCollapsed ? "justify-center p-3" : "gap-3 px-4 py-3",
                   active
-                    ? "gradient-bg text-primary-foreground shadow-elegant"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent",
+                    ? "bg-primary/10 text-primary font-semibold shadow-sm"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-foreground",
                 )}
               >
-                {item.icon}
-                {item.label}
+                {/* Stripe/Linear style left indicator */}
+                {active && (
+                  <div className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r bg-primary animate-fade-in" />
+                )}
+                <div className={cn("size-5 shrink-0 flex items-center justify-center transition-transform group-hover/item:scale-105", active ? "text-primary animate-pulse" : "text-muted-foreground group-hover/item:text-foreground")}>
+                  {item.icon}
+                </div>
+                {!isCollapsed && <span className="truncate transition-all duration-300">{item.label}</span>}
               </Link>
             );
           })}
         </nav>
-        <div className="p-4 border-t">
-          <div className="flex items-center gap-3 px-2 py-3 rounded-xl">
-            <div className="size-10 rounded-full gradient-bg grid place-items-center text-primary-foreground font-semibold">
+        <div className="p-3 border-t border-border/40 shrink-0 bg-muted/5">
+          <div className={cn("flex items-center rounded-xl", isCollapsed ? "justify-center p-1" : "gap-3 px-2 py-2")}>
+            <div className="size-9 rounded-full gradient-bg grid place-items-center text-primary-foreground text-xs font-semibold shrink-0" title={user?.name}>
               {user?.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold truncate">{user?.name}</div>
-              <div className="text-xs text-muted-foreground truncate capitalize">
-                {user?.role}{user?.department ? ` · ${user.department}` : ""}
+            {!isCollapsed && (
+              <div className="flex-1 min-w-0 animate-fade-in">
+                <div className="text-sm font-semibold truncate leading-none mb-0.5">{user?.name}</div>
+                <div className="text-[10px] text-muted-foreground truncate capitalize font-medium">
+                  {user?.role}{user?.department ? ` · ${user.department}` : ""}
+                </div>
               </div>
-            </div>
+            )}
           </div>
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-2 mt-2"
-            onClick={() => { authStore.logout(); navigate({ to: "/" }); }}
-          >
-            <LogOut className="size-4" /> Sign out
-          </Button>
+          
+          <div className={cn("flex flex-col gap-1 mt-2", isCollapsed && "items-center")}>
+            <Button
+              variant="ghost"
+              size={isCollapsed ? "icon" : "default"}
+              className={cn("w-full justify-start gap-2 text-muted-foreground hover:text-foreground h-9", isCollapsed ? "justify-center size-9 p-0" : "px-3 py-2")}
+              onClick={toggleSidebar}
+              title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {isCollapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+              {!isCollapsed && <span className="text-xs font-medium">Collapse Sidebar</span>}
+            </Button>
+            <Button
+              variant="ghost"
+              size={isCollapsed ? "icon" : "default"}
+              className={cn("w-full justify-start gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive h-9", isCollapsed ? "justify-center size-9 p-0" : "px-3 py-2")}
+              onClick={() => { authStore.logout(); navigate({ to: "/" }); }}
+              title="Sign out"
+            >
+              <LogOut className="size-4" />
+              {!isCollapsed && <span className="text-xs font-medium">Sign out</span>}
+            </Button>
+          </div>
         </div>
       </aside>
 
       {open && (
         <button
           aria-label="close"
-          className="lg:hidden fixed inset-0 bg-black/40 z-30"
+          className="lg:hidden fixed inset-0 bg-black/40 z-30 backdrop-blur-sm transition-opacity duration-300"
           onClick={() => setOpen(false)}
         />
       )}
 
       <div className="flex-1 min-w-0 flex flex-col">
-        <header className="sticky top-0 z-20 glass border-b">
+        <header className="sticky top-0 z-20 glass border-b border-border/40">
           <div className="flex items-center gap-3 px-4 sm:px-8 h-16">
             <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setOpen((v) => !v)}>
               {open ? <X className="size-5" /> : <Menu className="size-5" />}
             </Button>
             <div className="flex items-center gap-2">
               <GraduationCap className="size-5 text-primary" />
-              <h1 className="font-display font-semibold text-lg">{title}</h1>
+              <h1 className="font-display font-semibold text-base sm:text-lg tracking-tight">{title}</h1>
             </div>
-            <div className="ml-auto flex items-center gap-2">
-              <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
-                {dark ? <Sun className="size-5" /> : <Moon className="size-5" />}
+            
+            <div className="ml-auto flex items-center gap-2 relative">
+              {/* Discoverable Command Palette Trigger */}
+              <button
+                onClick={() => setShowPalette(true)}
+                className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border/40 bg-muted/40 text-muted-foreground hover:text-foreground text-xs font-semibold transition-colors cursor-pointer mr-2 shadow-xs hover:bg-muted"
+              >
+                <Search className="size-3.5" />
+                <span>Search...</span>
+                <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-0.5 rounded border border-border bg-popover px-1.5 font-mono text-[9px] font-bold opacity-100">
+                  <span className="text-xs">⌘</span>K
+                </kbd>
+              </button>
+
+              {/* Notification Bell */}
+              <div className="relative">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="relative rounded-full hover:bg-accent/40 size-9 flex items-center justify-center"
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  aria-label="Notifications"
+                >
+                  <Bell className="size-4.5 text-foreground/80 hover:text-foreground transition-colors" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground font-mono text-[9px] font-bold h-4 w-4 rounded-full flex items-center justify-center border border-background animate-pulse shadow-elegant">
+                      {unreadCount}
+                    </span>
+                  )}
+                </Button>
+
+                {/* Notifications Dropdown */}
+                <AnimatePresence>
+                  {showNotifications && (
+                    <>
+                      {/* Click outside backdrop */}
+                      <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-0 mt-2 w-80 sm:w-96 glass-strong rounded-2xl border border-border/40 shadow-2xl z-50 overflow-hidden flex flex-col max-h-[480px]"
+                      >
+                        <div className="px-4 py-3 border-b border-border/40 flex items-center justify-between bg-muted/20">
+                          <h3 className="font-display font-semibold text-sm">Notifications</h3>
+                          {unreadCount > 0 && (
+                            <button
+                              onClick={markAllAsRead}
+                              className="text-xs text-primary hover:underline font-medium"
+                            >
+                              Mark all as read
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex-1 overflow-y-auto divide-y divide-border/30 max-h-[360px] custom-scrollbar">
+                          {activity.length === 0 ? (
+                            <div className="p-8 text-center text-muted-foreground text-sm font-medium">
+                              No recent notifications
+                            </div>
+                          ) : (
+                            activity.slice(0, 15).map((act) => {
+                              const isUnread = !readIds.includes(act.id);
+                              return (
+                                <div
+                                  key={act.id}
+                                  className={cn(
+                                    "p-3.5 flex items-start gap-3 hover:bg-accent/30 transition-colors text-left",
+                                    isUnread && "bg-primary/5"
+                                  )}
+                                >
+                                  <div className="size-2 rounded-full mt-1.5 shrink-0 bg-primary/80" style={{ opacity: isUnread ? 1 : 0 }} />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs text-foreground leading-normal font-medium">
+                                      <span className="font-bold text-foreground">{act.actor}</span>{" "}
+                                      {act.action}
+                                    </p>
+                                    <span className="text-[10px] text-muted-foreground mt-1 block font-medium">
+                                      {formatRelativeTime(act.at)}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                        <div className="p-2.5 border-t border-border/40 text-center bg-muted/10">
+                          <span className="text-[10px] text-muted-foreground font-medium">Real-time clearance updates active</span>
+                        </div>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <Button variant="ghost" size="icon" className="rounded-full size-9" onClick={toggleTheme} aria-label="Toggle theme">
+                {dark ? <Sun className="size-4.5" /> : <Moon className="size-4.5" />}
               </Button>
             </div>
           </div>
@@ -132,6 +512,105 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
           {children}
         </main>
       </div>
+
+      {/* Global Command Palette Overlay Dialog */}
+      <AnimatePresence>
+        {showPalette && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => { setShowPalette(false); setSearchQuery(""); }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 transition-opacity"
+            />
+            <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] px-4 pointer-events-none">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.97, y: -10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.97, y: -10 }}
+                transition={{ duration: 0.15 }}
+                className="w-full max-w-lg bg-popover/95 border border-border shadow-2xl rounded-2xl overflow-hidden flex flex-col max-h-[420px] pointer-events-auto"
+              >
+                {/* Search Bar Input Header */}
+                <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border/40">
+                  <Search className="size-4 text-muted-foreground" />
+                  <input
+                    autoFocus
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search students, requests, actions..."
+                    className="flex-1 bg-transparent border-0 outline-none text-foreground placeholder:text-muted-foreground text-sm py-1"
+                  />
+                  <kbd className="pointer-events-none inline-flex select-none items-center rounded border bg-muted px-1.5 font-mono text-[9px] font-medium text-muted-foreground opacity-100">
+                    ESC
+                  </kbd>
+                </div>
+
+                {/* Flat/Grouped Results container */}
+                <div className="flex-1 overflow-y-auto p-2 space-y-3 max-h-[320px] custom-scrollbar">
+                  {filteredItems.length === 0 ? (
+                    <div className="py-12 text-center text-muted-foreground text-sm font-medium">
+                      No results found for &ldquo;{searchQuery}&rdquo;
+                    </div>
+                  ) : (
+                    (() => {
+                      const categories = Array.from(new Set(filteredItems.map(item => item.category)));
+                      return categories.map(cat => {
+                        const catItems = filteredItems.filter(item => item.category === cat);
+                        return (
+                          <div key={cat} className="space-y-1">
+                            <div className="px-3 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider select-none">
+                              {cat}
+                            </div>
+                            {catItems.map(item => {
+                              const currentIndex = filteredItems.indexOf(item);
+                              const isSelected = currentIndex === selectedIndex;
+                              return (
+                                <button
+                                  key={item.id}
+                                  onClick={() => {
+                                    item.action();
+                                    setShowPalette(false);
+                                    setSearchQuery("");
+                                  }}
+                                  onMouseEnter={() => setSelectedIndex(currentIndex)}
+                                  className={cn(
+                                    "w-full flex flex-col text-left px-3 py-2 rounded-xl transition-all cursor-pointer",
+                                    isSelected
+                                      ? "bg-primary text-primary-foreground shadow-sm font-medium"
+                                      : "hover:bg-accent/40 text-foreground"
+                                  )}
+                                >
+                                  <div className="text-sm font-semibold leading-tight">{item.title}</div>
+                                  <div className={cn("text-xs mt-0.5", isSelected ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                                    {item.subtitle}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        );
+                      });
+                    })()
+                  )}
+                </div>
+
+                {/* Instructions Footer */}
+                <div className="px-4 py-2.5 border-t border-border/40 bg-muted/10 flex items-center justify-between text-[10px] text-muted-foreground font-medium select-none">
+                  <div className="flex items-center gap-1.5">
+                    <span>↑↓ to navigate</span>
+                    <span>&middot;</span>
+                    <span>Enter to select</span>
+                  </div>
+                  <span>Ctrl + K to toggle</span>
+                </div>
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

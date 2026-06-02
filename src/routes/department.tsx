@@ -87,10 +87,10 @@ function DepartmentPage() {
 
         <div className="glass-strong rounded-2xl overflow-hidden">
           {filtered.length === 0 ? (
-            <div className="p-12 text-center">
-              <Inbox className="size-12 mx-auto text-muted-foreground/50" />
-              <h3 className="font-display font-semibold text-lg mt-4">No requests found</h3>
-              <p className="text-sm text-muted-foreground mt-1">Try adjusting your search or filter.</p>
+            <div className="p-12 text-center select-none">
+              <Inbox className="size-12 mx-auto text-muted-foreground/40 mb-3" />
+              <h3 className="font-display font-semibold text-base sm:text-lg">You're all caught up.</h3>
+              <p className="text-sm text-muted-foreground mt-1 font-medium">No pending clearance requests require attention in this department queue.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
