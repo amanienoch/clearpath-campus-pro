@@ -96,6 +96,7 @@ function profileRowToUser(p: Record<string, unknown>, role: Role): User {
     program: (p.program as string) ?? undefined,
     faculty: (p.faculty as string) ?? undefined,
     level: (p.level as string) ?? undefined,
+    admissionNumber: (p.admission_number as string) ?? undefined,
     password: "",
   };
 }
@@ -449,14 +450,26 @@ if (typeof window !== "undefined") {
 
 export const authStore = {
   getUser: () => auth.user,
-  login: async (email: string, password: string): Promise<Role | null> => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  login: async (identifier: string, password: string): Promise<Role | null> => {
+    let emailToUse = identifier;
+    // If identifier is numeric, treat as admission number
+    if (/^\d+$/.test(identifier)) {
+      // Fetch email associated with admission number
+      const { data: profile, error: profileErr } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('admission_number', identifier)
+        .maybeSingle();
+      if (profileErr || !profile) return null;
+      emailToUse = profile.email as string;
+    }
+    const { data, error } = await supabase.auth.signInWithPassword({ email: emailToUse, password });
     if (error || !data.user) return null;
     await hydrateAuthUser(data.user.id);
     authHydrated = true;
     notifyAuth();
     await loadAll();
-    await logActivity(auth.user?.name ?? email, "signed in");
+    await logActivity(auth.user?.name ?? emailToUse, "signed in");
     return auth.user?.role ?? null;
   },
   logout: async () => {

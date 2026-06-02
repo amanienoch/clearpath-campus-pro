@@ -23,7 +23,7 @@ import {
 import {
   LayoutDashboard, Users, BadgeCheck, FileCheck2, Clock, XCircle, TrendingUp,
   Pencil, Trash2, Plus, Activity, BookOpen, Wallet, Laptop, Home, Trophy, Calendar, Check, AlertTriangle, Search,
-  ShieldCheck, CheckCircle2, FileText, Inbox
+  CheckCircle2, FileText, Inbox
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip,
@@ -173,12 +173,17 @@ function AdminPage() {
   const filteredRequests = useMemo(() => {
     if (!overviewSearch.trim()) return requests;
     const q = overviewSearch.toLowerCase();
-    return requests.filter(r => 
-      r.clearanceId.toLowerCase().includes(q) ||
-      r.studentName.toLowerCase().includes(q) ||
-      r.matricNo.toLowerCase().includes(q)
-    );
-  }, [requests, overviewSearch]);
+    const userMap = new Map(users.map(u => [u.id, u]));
+    return requests.filter(r => {
+      const user = userMap.get(r.studentId);
+      return (
+        r.clearanceId.toLowerCase().includes(q) ||
+        r.studentName.toLowerCase().includes(q) ||
+        r.matricNo.toLowerCase().includes(q) ||
+        (user && user.admissionNumber && user.admissionNumber.toLowerCase().includes(q))
+      );
+    });
+  }, [requests, overviewSearch, users]);
 
   return (
     <AppShell
@@ -292,6 +297,7 @@ function AdminPage() {
                       <td className="px-4 py-3">
                         <div className="font-bold">{r.studentName}</div>
                         <div className="text-xs text-muted-foreground font-medium">{r.matricNo}</div>
+                        <div className="text-xs text-muted-foreground font-medium">{(users.find(u=>u.id===r.studentId)||{}).admissionNumber ?? "—"}</div>
                       </td>
                       <td className="px-4 py-3 font-mono whitespace-nowrap">{r.clearanceId}</td>
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{new Date(r.submittedAt).toLocaleDateString()}</td>
@@ -308,7 +314,7 @@ function AdminPage() {
           {/* Executive KPI Statistics Grid */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <BigStat icon={<Users className="size-6 text-primary" />} label="Total Students" value={totalStudents} />
-            <BigStat icon={<ShieldCheck className="size-6 text-indigo-500" />} label="Total Users" value={totalUsers} />
+            <BigStat icon={<CheckCircle2 className="size-6 text-indigo-500" />} label="Total Users" value={totalUsers} />
             <BigStat icon={<CheckCircle2 className="size-6 text-success animate-pulse" />} label="Cleared Students" value={clearedCount} tone="success" />
             <BigStat icon={<Clock className="size-6 text-warning" />} label="Pending Requests" value={pendingCount} tone="warning" />
             <BigStat icon={<XCircle className="size-6 text-destructive" />} label="Rejected Requests" value={rejectedCount} tone="destructive" />
@@ -501,7 +507,8 @@ function UsersTab({ users }: { users: User[] }) {
       u.name.toLowerCase().includes(q) ||
       u.email.toLowerCase().includes(q) ||
       u.role.toLowerCase().includes(q) ||
-      (u.department && u.department.toLowerCase().includes(q))
+      (u.department && u.department.toLowerCase().includes(q)) ||
+      (u.admissionNumber && u.admissionNumber.toLowerCase().includes(q))
     );
   }, [users, search]);
 
@@ -536,13 +543,14 @@ function UsersTab({ users }: { users: User[] }) {
                 <th className="px-4 py-3 font-semibold">Email</th>
                 <th className="px-4 py-3 font-semibold">Role</th>
                 <th className="px-4 py-3 font-semibold">Department</th>
+                <th className="px-4 py-3 font-semibold">Admission #</th>
                 <th className="px-4 py-3 font-semibold text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground select-none">
+                  <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground select-none">
                     <Inbox className="size-10 mx-auto text-muted-foreground/45 mb-3" />
                     <div className="font-semibold text-sm">You're all caught up.</div>
                     <div className="text-xs mt-1">No matching user accounts found.</div>
@@ -554,6 +562,7 @@ function UsersTab({ users }: { users: User[] }) {
                   <td className="px-4 py-3 text-muted-foreground whitespace-nowrap font-medium">{u.email}</td>
                   <td className="px-4 py-3 capitalize font-semibold">{u.role}</td>
                   <td className="px-4 py-3 text-muted-foreground font-semibold">{u.department ?? "—"}</td>
+                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{u.admissionNumber ?? "—"}</td>
                   <td className="px-4 py-3 text-right whitespace-nowrap">
                     <Button size="sm" variant="ghost" onClick={() => startEdit(u)} aria-label={`Edit ${u.name}`}><Pencil className="size-3.5" /></Button>
                     <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(u)} aria-label={`Delete ${u.name}`}><Trash2 className="size-3.5 text-destructive" /></Button>
@@ -615,6 +624,10 @@ function UserDialog({ open, onClose, user }: { open: boolean; onClose: () => voi
     }
     if (draft.password && draft.password.length < 6) {
       return toast.error("Password must be at least 6 characters");
+    }
+
+    if (draft.role === "student" && draft.admissionNumber && !/^\d+$/.test(draft.admissionNumber)) {
+      return toast.error("Admission Number must be numeric");
     }
     
     if (draft.role === "department" && !draft.department) {
@@ -685,6 +698,12 @@ function UserDialog({ open, onClose, user }: { open: boolean; onClose: () => voi
                     {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+            {draft.role === "student" && (
+              <div className="space-y-1.5">
+                <Label>Admission #</Label>
+                <Input value={draft.admissionNumber || ""} onChange={(e) => setDraft({ ...draft, admissionNumber: e.target.value })} placeholder="e.g. 122001" />
               </div>
             )}
           </div>

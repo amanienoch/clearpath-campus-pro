@@ -32,8 +32,11 @@ export interface ObligationData {
   sports: SportsLoan[];
 }
 
-export const NGN = (n: number) =>
+export const formatKES = (n: number) =>
   "KES " + new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(n);
+
+// Backward compatible alias
+export const NGN = formatKES;
 
 export function evaluateDepartment(
   department: Department,

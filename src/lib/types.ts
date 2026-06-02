@@ -61,6 +61,7 @@ export interface User {
   program?: string;
   faculty?: string;
   level?: string;
+  admissionNumber?: string;
   password: string;
 }
 
