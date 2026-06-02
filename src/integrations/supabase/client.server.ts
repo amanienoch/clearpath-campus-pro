@@ -15,8 +15,8 @@ function createSupabaseAdminClient() {
       // Fallback for local development if process.env isn't populated
       if (fs.existsSync('.env')) {
         const envRaw = fs.readFileSync('.env', 'utf8');
-        envRaw.split('\\n').forEach((line) => {
-          const match = line.match(/^\\s*(VITE_)?(SUPABASE_[A-Z_]+)="?([^"]+)"?/);
+        envRaw.split('\n').forEach((line) => {
+          const match = line.match(/^\s*(VITE_)?(SUPABASE_[A-Z_]+)="?([^"\r\n]+)"?/);
           if (match && match[2] === 'SUPABASE_URL') SUPABASE_URL = match[3];
           if (match && match[2] === 'SUPABASE_SERVICE_ROLE_KEY') SUPABASE_SERVICE_ROLE_KEY = match[3];
         });
@@ -24,6 +24,14 @@ function createSupabaseAdminClient() {
     } catch (e) {
       // Ignore fs errors in edge environments
     }
+  }
+
+  // Hardcoded fallback for Vercel deployments where .env is not accessible at runtime
+  if (!SUPABASE_URL) {
+    SUPABASE_URL = "https://docukpjoyvjcgzyiikio.supabase.co";
+  }
+  if (!SUPABASE_SERVICE_ROLE_KEY) {
+    SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRvY3VrcGpveXZqY2d6eWlpa2lvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MDAwNjY0NywiZXhwIjoyMDk1NTgyNjQ3fQ.2CEX_V5dc6S9V1pWu_9x5lrANtToBUotlu3-ENzKbwo";
   }
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
