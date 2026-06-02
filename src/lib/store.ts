@@ -101,21 +101,45 @@ function profileRowToUser(p: Record<string, unknown>, role: Role): User {
 }
 
 async function loadAll() {
-  const [profilesRes, rolesRes, reqsRes, revsRes, actsRes, loansRes, feesRes, assetsRes, hostelRes, sportsRes] = await Promise.all([
-    supabase.from("profiles").select("*"),
-    supabase.from("user_roles").select("user_id, role"),
-    supabase.from("clearance_requests").select("*").order("submitted_at", { ascending: false }),
-    supabase.from("dept_reviews").select("*"),
-    supabase.from("activity_logs").select("*").order("at", { ascending: false }).limit(100),
-    supabase.from("library_loans").select("*"),
-    supabase.from("fee_balances").select("*"),
-    supabase.from("ict_assets").select("*"),
-    supabase.from("hostel_assignments").select("*"),
-    supabase.from("sports_loans").select("*"),
-  ]);
+  // Run reads in parallel but defend against individual failures so UI doesn't break on a single 500
+  const queries = {
+    profiles: supabase.from("profiles").select("*"),
+    roles: supabase.from("user_roles").select("user_id, role"),
+    reqs: supabase.from("clearance_requests").select("*").order("submitted_at", { ascending: false }),
+    revs: supabase.from("dept_reviews").select("*"),
+    acts: supabase.from("activity_logs").select("*").order("at", { ascending: false }).limit(100),
+    loans: supabase.from("library_loans").select("*"),
+    fees: supabase.from("fee_balances").select("*"),
+    assets: supabase.from("ict_assets").select("*"),
+    hostel: supabase.from("hostel_assignments").select("*"),
+    sports: supabase.from("sports_loans").select("*"),
+  };
+
+  const results = await Promise.all(Object.values(queries).map((q: any) => q.catch ? q.catch((e: any) => ({ error: e })) : q));
+  const [profilesRes, rolesRes, reqsRes, revsRes, actsRes, loansRes, feesRes, assetsRes, hostelRes, sportsRes] = results as any[];
+
+  // Normalize errors: if a request failed, replace with empty data and log
+  const norm = (r: any, name: string) => {
+    if (!r) return { data: [], error: null };
+    if (r.error) {
+      console.error(`Supabase read error for ${name}:`, r.error);
+      return { data: [], error: r.error };
+    }
+    return r;
+  };
+  const _profilesRes = norm(profilesRes, 'profiles');
+  const _rolesRes = norm(rolesRes, 'user_roles');
+  const _reqsRes = norm(reqsRes, 'clearance_requests');
+  const _revsRes = norm(revsRes, 'dept_reviews');
+  const _actsRes = norm(actsRes, 'activity_logs');
+  const _loansRes = norm(loansRes, 'library_loans');
+  const _feesRes = norm(feesRes, 'fee_balances');
+  const _assetsRes = norm(assetsRes, 'ict_assets');
+  const _hostelRes = norm(hostelRes, 'hostel_assignments');
+  const _sportsRes = norm(sportsRes, 'sports_loans');
 
   const roleMap = new Map<string, Role>();
-  for (const r of rolesRes.data ?? []) {
+  for (const r of _rolesRes.data ?? []) {
     const existing = roleMap.get(r.user_id as string);
     const order: Role[] = ["student", "department", "admin"];
     if (!existing || order.indexOf(r.role as Role) > order.indexOf(existing)) {
@@ -123,22 +147,22 @@ async function loadAll() {
     }
   }
 
-  const users: User[] = (profilesRes.data ?? []).map((p) =>
+  const users: User[] = (_profilesRes.data ?? []).map((p) =>
     profileRowToUser(p as Record<string, unknown>, roleMap.get((p as { id: string }).id) ?? "student"),
   );
 
   const requests = rowsToRequests(
-    (reqsRes.data ?? []) as Array<Record<string, unknown>>,
-    (revsRes.data ?? []) as Array<Record<string, unknown>>,
+    (_reqsRes.data ?? []) as Array<Record<string, unknown>>,
+    (_revsRes.data ?? []) as Array<Record<string, unknown>>,
   );
 
-  const activity: ActivityItem[] = (actsRes.data ?? []).map((a) => ({
+  const activity: ActivityItem[] = (_actsRes.data ?? []).map((a) => ({
     id: a.id as string, at: a.at as string,
     actor: a.actor as string, action: a.action as string,
     target: (a.target as string) ?? undefined,
   }));
 
-  const loans: LibraryLoan[] = (loansRes.data ?? []).map((l) => ({
+  const loans: LibraryLoan[] = (_loansRes.data ?? []).map((l) => ({
     id: l.id as string,
     studentId: l.student_id as string,
     bookTitle: l.book_title as string,
@@ -146,20 +170,20 @@ async function loadAll() {
     returned: l.returned as boolean,
     fineAmount: Number(l.fine_amount ?? 0),
   }));
-  const fees: FeeBalance[] = (feesRes.data ?? []).map((f) => ({
+  const fees: FeeBalance[] = (_feesRes.data ?? []).map((f) => ({
     id: f.id as string,
     studentId: f.student_id as string,
     item: f.item as string,
     amountDue: Number(f.amount_due ?? 0),
   }));
-  const assets: IctAsset[] = (assetsRes.data ?? []).map((a) => ({
+  const assets: IctAsset[] = (_assetsRes.data ?? []).map((a) => ({
     id: a.id as string,
     studentId: a.student_id as string,
     asset: a.asset as string,
     returned: a.returned as boolean,
     replacementCost: Number(a.replacement_cost ?? 0),
   }));
-  const hostel: HostelAssignment[] = (hostelRes.data ?? []).map((h) => ({
+  const hostel: HostelAssignment[] = (_hostelRes.data ?? []).map((h) => ({
     id: h.id as string,
     studentId: h.student_id as string,
     room: h.room as string,
@@ -167,7 +191,7 @@ async function loadAll() {
     damageFee: Number(h.damage_fee ?? 0),
   }));
 
-  const sports: import("./types").SportsLoan[] = (sportsRes.data ?? []).map((s) => ({
+  const sports: import("./types").SportsLoan[] = (_sportsRes.data ?? []).map((s) => ({
     id: s.id as string,
     studentId: s.student_id as string,
     equipment: s.equipment as string,
