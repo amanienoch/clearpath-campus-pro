@@ -1,9 +1,9 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState, useMemo, type ReactNode } from "react";
-import { authStore, useAuthHydrated, useAuthUser, useStore } from "@/lib/store";
+import { authStore, useAuthHydrated, useAuthUser, useStore, usePasswordChangeRequired } from "@/lib/store";
 import { Role } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, LogOut, Menu, Moon, ShieldCheck, Sun, X, PanelLeftClose, PanelLeftOpen, Bell, Search } from "lucide-react";
+import { GraduationCap, LogOut, Menu, Moon, ShieldCheck, Sun, X, PanelLeftClose, PanelLeftOpen, Bell, Search, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -35,7 +35,10 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
   const authReady = useAuthHydrated();
   const navigate = useNavigate();
   const path = useRouterState({ select: (r) => r.location.pathname });
+  const passwordChangeRequired = usePasswordChangeRequired();
   const [open, setOpen] = useState(false);
+
+  const finalNav = user?.role === "student" && passwordChangeRequired ? [] : nav;
   const [dark, setDark] = useState(false);
 
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -95,12 +98,19 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
       navigate({ to: "/" });
       return;
     }
+    if (user.role === "student" && passwordChangeRequired && path !== "/settings") {
+      toast.error("Change Password Required", {
+        description: "Please update your password before accessing the student dashboard.",
+      });
+      navigate({ to: "/settings" });
+      return;
+    }
     if (role && user.role !== role) {
       toast.error("You don't have access to that page");
       const dest = user.role === "student" ? "/student" : user.role === "admin" ? "/admin" : "/department";
       navigate({ to: dest });
     }
-  }, [authReady, user, navigate, role]);
+  }, [authReady, user, navigate, role, passwordChangeRequired, path]);
 
   // --- Command Palette State & Search ---
   const [showPalette, setShowPalette] = useState(false);
@@ -322,7 +332,7 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
           )}
         </div>
         <nav className="px-3 py-4 flex-1 space-y-1 overflow-y-auto custom-scrollbar">
-          {nav.map((item) => {
+          {finalNav.map((item) => {
             const active = path === item.to || (item.to !== "/" && path.startsWith(item.to));
             return (
               <Link
@@ -366,6 +376,20 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
           </div>
           
           <div className={cn("flex flex-col gap-1 mt-2", isCollapsed && "items-center")}>
+            <Button
+              variant="ghost"
+              size={isCollapsed ? "icon" : "default"}
+              className={cn(
+                "w-full justify-start gap-2 h-9",
+                path === "/settings" ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:text-foreground",
+                isCollapsed ? "justify-center size-9 p-0" : "px-3 py-2"
+              )}
+              onClick={() => navigate({ to: "/settings" })}
+              title="Change Password"
+            >
+              <Settings className={cn("size-4", path === "/settings" ? "text-primary" : "text-muted-foreground")} />
+              {!isCollapsed && <span className="text-xs font-medium">Change Password</span>}
+            </Button>
             <Button
               variant="ghost"
               size={isCollapsed ? "icon" : "default"}

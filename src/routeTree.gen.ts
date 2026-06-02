@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VerifyRouteImport } from './routes/verify'
 import { Route as StudentRouteImport } from './routes/student'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as DepartmentRouteImport } from './routes/department'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
@@ -23,6 +24,11 @@ const VerifyRoute = VerifyRouteImport.update({
 const StudentRoute = StudentRouteImport.update({
   id: '/student',
   path: '/student',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DepartmentRoute = DepartmentRouteImport.update({
@@ -45,6 +51,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/department': typeof DepartmentRoute
+  '/settings': typeof SettingsRoute
   '/student': typeof StudentRoute
   '/verify': typeof VerifyRoute
 }
@@ -52,6 +59,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/department': typeof DepartmentRoute
+  '/settings': typeof SettingsRoute
   '/student': typeof StudentRoute
   '/verify': typeof VerifyRoute
 }
@@ -60,21 +68,36 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/department': typeof DepartmentRoute
+  '/settings': typeof SettingsRoute
   '/student': typeof StudentRoute
   '/verify': typeof VerifyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/department' | '/student' | '/verify'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/department'
+    | '/settings'
+    | '/student'
+    | '/verify'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/department' | '/student' | '/verify'
-  id: '__root__' | '/' | '/admin' | '/department' | '/student' | '/verify'
+  to: '/' | '/admin' | '/department' | '/settings' | '/student' | '/verify'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/department'
+    | '/settings'
+    | '/student'
+    | '/verify'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   DepartmentRoute: typeof DepartmentRoute
+  SettingsRoute: typeof SettingsRoute
   StudentRoute: typeof StudentRoute
   VerifyRoute: typeof VerifyRoute
 }
@@ -93,6 +116,13 @@ declare module '@tanstack/react-router' {
       path: '/student'
       fullPath: '/student'
       preLoaderRoute: typeof StudentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/department': {
@@ -123,6 +153,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   DepartmentRoute: DepartmentRoute,
+  SettingsRoute: SettingsRoute,
   StudentRoute: StudentRoute,
   VerifyRoute: VerifyRoute,
 }

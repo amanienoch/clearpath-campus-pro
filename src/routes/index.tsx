@@ -26,17 +26,32 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-
-
   useEffect(() => {
     if (!authReady || !user) return;
+    
+    // If logged in and password change is required, force them to settings immediately
+    if (user.role === "student" && authStore.isPasswordChangeRequired()) {
+      navigate({ to: "/settings" });
+      return;
+    }
+
     const dest = user.role === "student" ? "/student" : user.role === "admin" ? "/admin" : "/department";
     navigate({ to: dest });
   }, [authReady, user]);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const role = await authStore.login(email, password);
-    if (!role) return toast.error("Invalid email or password");
+    if (!role) return toast.error("Invalid email, admission number, or password");
+    
+    if (role === "student" && authStore.isPasswordChangeRequired()) {
+      toast.error("Change Password Required", {
+        description: "You must update your default password before accessing your student portal.",
+      });
+      navigate({ to: "/settings" });
+      return;
+    }
+
     toast.success(`Welcome back!`);
     navigate({ to: role === "student" ? "/student" : role === "admin" ? "/admin" : "/department" });
   };
@@ -98,13 +113,23 @@ function LoginPage() {
 
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email address</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@university.edu" required />
+              <Label htmlFor="email">Admission Number / Email Address</Label>
+              <Input id="email" type="text" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="e.g. 122000 or you@university.edu" required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
             </div>
+
+            {/* Student credentials display instructions */}
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5 text-xs text-muted-foreground space-y-1 font-medium">
+              <div className="font-bold text-foreground flex items-center gap-1.5 mb-1.5">
+                <Sparkles className="size-3.5 text-primary" /> Student Login Info
+              </div>
+              <div><strong className="text-foreground">Username:</strong> Admission Number (e.g. <code className="bg-muted px-1.5 py-0.5 rounded font-mono font-bold">122000</code>)</div>
+              <div><strong className="text-foreground">Password:</strong> Admission Number (first login only)</div>
+            </div>
+
             <Button type="submit" className="w-full gradient-bg text-primary-foreground shadow-elegant h-11 text-base neon-glow hover:scale-[1.01] transition-transform">
               Sign in <ArrowRight className="ml-1 size-4" />
             </Button>

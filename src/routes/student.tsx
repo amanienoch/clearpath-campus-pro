@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState, useEffect } from "react";
 import { AppShell } from "@/components/AppShell";
-import { useAuthUser, useStore, store } from "@/lib/store";
+import { useAuthUser, useStore, store, usePasswordChangeRequired } from "@/lib/store";
 import { ClearanceRequest, REQUEST_TYPES, REQUEST_TYPE_LABEL, REQUEST_TYPE_DEPARTMENTS, RequestType } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
 import { QrCode } from "@/components/QrCode";
@@ -34,6 +34,30 @@ function StudentPage() {
   const user = useAuthUser();
   const all = useStore((s) => s.requests);
   const hydrated = useStore((s) => s.hydrated);
+  const passwordChangeRequired = usePasswordChangeRequired();
+
+  if (passwordChangeRequired) {
+    return (
+      <AppShell
+        title="Student Portal"
+        role="student"
+        nav={[]}
+      >
+        <div className="glass-strong rounded-3xl p-12 text-center space-y-5 max-w-md mx-auto my-12 border border-warning/20 bg-warning/5 shadow-elegant animate-fade-up">
+          <div className="size-16 rounded-2xl bg-warning/15 grid place-items-center text-warning mx-auto animate-pulse">
+            <AlertTriangle className="size-8" />
+          </div>
+          <h3 className="font-display font-semibold text-xl">Change Password Required</h3>
+          <p className="text-muted-foreground text-sm leading-relaxed font-medium">
+            For security reasons, you must update your default password before accessing your clearance dashboard.
+          </p>
+          <Button onClick={() => window.location.href = "/settings"} className="w-full gradient-bg text-primary-foreground shadow-elegant h-10 hover:scale-[1.01] transition-transform">
+            Go to Account Settings
+          </Button>
+        </div>
+      </AppShell>
+    );
+  }
 
   const myRequests = useMemo(
     () =>

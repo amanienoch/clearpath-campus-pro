@@ -74,12 +74,13 @@ export const secureUpsertUser = createServerFn({
     }
 
     // Now upsert into profiles
+    const matricNo = u.role === "student" ? u.admissionNumber || u.matricNo : u.matricNo;
     const { error: profileError } = await supabaseAdmin.from("profiles").upsert({
       id: uid,
       name: u.name,
       email: u.email,
       department: u.department ?? null,
-      matric_no: u.matricNo ?? null,
+      matric_no: matricNo ?? null,
       program: u.program ?? null,
       faculty: u.faculty ?? null,
       level: u.level ?? null,

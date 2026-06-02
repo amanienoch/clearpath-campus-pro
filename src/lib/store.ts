@@ -86,17 +86,18 @@ function rowsToRequests(
 }
 
 function profileRowToUser(p: Record<string, unknown>, role: Role): User {
+  const matricNo = (p.matric_no as string) ?? undefined;
   return {
     id: p.id as string,
     name: p.name as string,
     email: p.email as string,
     role,
     department: (p.department as Department) ?? undefined,
-    matricNo: (p.matric_no as string) ?? undefined,
+    matricNo,
     program: (p.program as string) ?? undefined,
     faculty: (p.faculty as string) ?? undefined,
     level: (p.level as string) ?? undefined,
-    admissionNumber: (p.admission_number as string) ?? undefined,
+    admissionNumber: matricNo,
     password: "",
   };
 }
@@ -279,7 +280,13 @@ export const store = {
     const { data } = await supabase.auth.getSession();
     const accessToken = data.session?.access_token;
     if (!accessToken) throw new Error("You must be signed in as an admin to manage users");
-    await secureUpsertUser({ data: { accessToken, data: u } });
+
+    const payload = {
+      ...u,
+      matricNo: u.role === "student" ? u.admissionNumber || u.matricNo : u.matricNo,
+    };
+
+    await secureUpsertUser({ data: { accessToken, data: payload } });
     await loadAll();
   },
 
@@ -403,30 +410,47 @@ export function useStore<T>(selector: (s: State) => T): T {
   );
 }
 
-interface AuthState { user: User | null; }
-let auth: AuthState = { user: null };
+interface AuthState {
+  user: User | null;
+  passwordChangeRequired: boolean;
+}
+let auth: AuthState = { user: null, passwordChangeRequired: false };
 let authHydrated = false;
 const authListeners = new Set<() => void>();
 const notifyAuth = () => authListeners.forEach((l) => l());
 
 async function hydrateAuthUser(userId: string | null) {
   if (!userId) {
-    auth = { user: null };
+    auth = { user: null, passwordChangeRequired: false };
     notifyAuth();
     return;
   }
-  const [{ data: p }, { data: roles }] = await Promise.all([
+  const [{ data: p }, { data: roles }, { data: sessionData }] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
     supabase.from("user_roles").select("role").eq("user_id", userId),
+    supabase.auth.getSession(),
   ]);
-  if (!p) { auth = { user: null }; notifyAuth(); return; }
+  if (!p) {
+    auth = { user: null, passwordChangeRequired: false };
+    notifyAuth();
+    return;
+  }
   const order: Role[] = ["student", "department", "admin"];
   let best: Role = "student";
   for (const r of roles ?? []) {
     const rr = r.role as Role;
     if (order.indexOf(rr) > order.indexOf(best)) best = rr;
   }
-  auth = { user: profileRowToUser(p as Record<string, unknown>, best) };
+
+  const userMetadata = sessionData.session?.user?.user_metadata;
+  const isStudent = best === "student";
+  const passwordChanged = userMetadata?.password_changed === true;
+  const passwordChangeRequired = isStudent && !passwordChanged;
+
+  auth = {
+    user: profileRowToUser(p as Record<string, unknown>, best),
+    passwordChangeRequired,
+  };
   notifyAuth();
 }
 
@@ -456,19 +480,25 @@ if (typeof window !== "undefined") {
 
 export const authStore = {
   getUser: () => auth.user,
+  isPasswordChangeRequired: () => auth.passwordChangeRequired,
+  setPasswordChangeRequired: (val: boolean) => {
+    auth.passwordChangeRequired = val;
+    notifyAuth();
+  },
   login: async (identifier: string, password: string): Promise<Role | null> => {
     let emailToUse = identifier;
-    // If identifier is numeric, treat as admission number
-    if (/^\d+$/.test(identifier)) {
-      // Fetch email associated with admission number
-      const { data: profile, error: profileErr } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('admission_number', identifier)
-        .maybeSingle();
-      if (profileErr || !profile) return null;
+
+    // Check if the identifier matches a student's matric_no
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("email")
+      .eq("matric_no", identifier)
+      .maybeSingle();
+
+    if (profile) {
       emailToUse = profile.email as string;
     }
+
     const { data, error } = await supabase.auth.signInWithPassword({ email: emailToUse, password });
     if (error || !data.user) return null;
     await hydrateAuthUser(data.user.id);
@@ -482,7 +512,7 @@ export const authStore = {
     const name = auth.user?.name;
     if (name) await logActivity(name, "signed out");
     await supabase.auth.signOut();
-    auth = { user: null };
+    auth = { user: null, passwordChangeRequired: false };
     authHydrated = true;
     notifyAuth();
   },
@@ -512,5 +542,13 @@ export function useAuthHydrated() {
     subscribeAuth,
     getHydratedSnapshot,
     getHydratedServerSnapshot,
+  );
+}
+
+export function usePasswordChangeRequired() {
+  return useSyncExternalStore(
+    subscribeAuth,
+    () => auth.passwordChangeRequired,
+    () => false,
   );
 }
