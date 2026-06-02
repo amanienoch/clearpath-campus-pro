@@ -110,9 +110,10 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
   const allRequests = useStore((s) => s.requests);
   const allUsers = useStore((s) => s.users);
 
-  // Global event listener for Ctrl+K / Cmd+K
+  // Global event listener for Ctrl+K / Cmd+K (restricted to admins)
   useEffect(() => {
     const handleGlobalKeys = (e: KeyboardEvent) => {
+      if (user?.role !== "admin") return;
       if ((e.ctrlKey || e.metaKey) && e.key === "k") {
         e.preventDefault();
         setShowPalette((prev) => !prev);
@@ -120,7 +121,7 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
     };
     window.addEventListener("keydown", handleGlobalKeys);
     return () => window.removeEventListener("keydown", handleGlobalKeys);
-  }, []);
+  }, [user?.role]);
 
   // Build the complete search index
   const searchIndex = useMemo((): SearchResult[] => {
@@ -409,17 +410,19 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
             </div>
             
             <div className="ml-auto flex items-center gap-2 relative">
-              {/* Discoverable Command Palette Trigger */}
-              <button
-                onClick={() => setShowPalette(true)}
-                className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border/40 bg-muted/40 text-muted-foreground hover:text-foreground text-xs font-semibold transition-colors cursor-pointer mr-2 shadow-xs hover:bg-muted"
-              >
-                <Search className="size-3.5" />
-                <span>Search...</span>
-                <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-0.5 rounded border border-border bg-popover px-1.5 font-mono text-[9px] font-bold opacity-100">
-                  <span className="text-xs">⌘</span>K
-                </kbd>
-              </button>
+              {/* Discoverable Command Palette Trigger (restricted to admins) */}
+              {user?.role === "admin" && (
+                <button
+                  onClick={() => setShowPalette(true)}
+                  className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border/40 bg-muted/40 text-muted-foreground hover:text-foreground text-xs font-semibold transition-colors cursor-pointer mr-2 shadow-xs hover:bg-muted"
+                >
+                  <Search className="size-3.5" />
+                  <span>Search...</span>
+                  <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-0.5 rounded border border-border bg-popover px-1.5 font-mono text-[9px] font-bold opacity-100">
+                    <span className="text-xs">⌘</span>K
+                  </kbd>
+                </button>
+              )}
 
               {/* Notification Bell */}
               <div className="relative">
@@ -515,7 +518,7 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
 
       {/* Global Command Palette Overlay Dialog */}
       <AnimatePresence>
-        {showPalette && (
+        {user?.role === "admin" && showPalette && (
           <>
             <motion.div
               initial={{ opacity: 0 }}

@@ -22,7 +22,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   LayoutDashboard, Users, BadgeCheck, FileCheck2, Clock, XCircle, TrendingUp,
-  Pencil, Trash2, Plus, Activity, BookOpen, Wallet, Laptop, Home, Trophy, Calendar, Check, AlertTriangle, Search
+  Pencil, Trash2, Plus, Activity, BookOpen, Wallet, Laptop, Home, Trophy, Calendar, Check, AlertTriangle, Search,
+  ShieldCheck, CheckCircle2, FileText, Inbox
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip,
