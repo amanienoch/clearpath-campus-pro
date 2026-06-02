@@ -32,6 +32,7 @@ import {
 import { toast } from "sonner";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { NGN } from "@/lib/eligibility";
+import { generateDemoData } from "@/lib/demo.functions";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin Dashboard — E-Clearance" }] }),
@@ -160,6 +161,7 @@ function AdminPage() {
 
   // Quick Action search filter on overview tab
   const [overviewSearch, setOverviewSearch] = useState("");
+  const [seeding, setSeeding] = useState(false);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const searchParam = params.get("search");
@@ -237,6 +239,24 @@ function AdminPage() {
           <div className="glass-strong rounded-2xl overflow-hidden border border-border/40">
             <div className="p-5 border-b border-border/40 flex items-center justify-between flex-wrap gap-3">
               <h3 className="font-display font-semibold text-base sm:text-lg">Recent Requests</h3>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="destructive" disabled={seeding} onClick={async () => {
+                  if (!confirm('Generate demo university data? This action runs once and cannot be undone.')) return;
+                  setSeeding(true);
+                  try {
+                    const res = await generateDemoData({});
+                    if (res?.seeded) {
+                      toast.success(`Created ${res.studentsCreated} students`);
+                      window.location.reload();
+                    } else {
+                      toast.error(`Seeding skipped: ${res?.reason ?? 'already seeded'}`);
+                    }
+                  } catch (e) {
+                    toast.error(String(e));
+                  }
+                  setSeeding(false);
+                }}>{seeding ? 'Generating…' : 'Generate Demo University Data'}</Button>
+              </div>
               {overviewSearch && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground font-medium">Filtering by search: &ldquo;{overviewSearch}&rdquo;</span>
