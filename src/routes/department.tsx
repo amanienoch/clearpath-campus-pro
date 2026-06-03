@@ -32,6 +32,16 @@ function DepartmentPage() {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | ClearanceStatus>("all");
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const searchParam = params.get("search");
+    if (searchParam) {
+      setQ(searchParam);
+      const newUrl = window.location.pathname;
+      window.history.replaceState(null, "", newUrl);
+    }
+  }, [window.location.search]);
+
   const myStatusOf = (r: ClearanceRequest) =>
     r.departments.find((d) => d.department === dept)!.status;
 

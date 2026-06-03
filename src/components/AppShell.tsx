@@ -30,6 +30,12 @@ function formatRelativeTime(dateStr: string) {
   return date.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
+let globalIsCollapsed = false;
+let isHydrated = false;
+if (typeof window !== "undefined") {
+  globalIsCollapsed = localStorage.getItem("sidebar-collapsed") === "true";
+}
+
 export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title: string; children: ReactNode; role?: Role }) {
   const user = useAuthUser();
   const authReady = useAuthHydrated();
@@ -42,15 +48,25 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
   const [dark, setDark] = useState(false);
 
   const [isCollapsed, setIsCollapsed] = useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("sidebar-collapsed") === "true";
+    if (typeof window !== "undefined" && isHydrated) {
+      return globalIsCollapsed;
     }
     return false;
   });
 
+  useEffect(() => {
+    if (!isHydrated) {
+      isHydrated = true;
+      if (globalIsCollapsed) {
+        setIsCollapsed(true);
+      }
+    }
+  }, []);
+
   const toggleSidebar = () => {
     setIsCollapsed((prev) => {
       const next = !prev;
+      globalIsCollapsed = next;
       localStorage.setItem("sidebar-collapsed", String(next));
       return next;
     });
@@ -320,16 +336,28 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
           open ? "translate-x-0 w-72" : "-translate-x-full lg:translate-x-0 w-72",
         )}
       >
-        <div className={cn("p-6 flex items-center shrink-0 border-b border-border/40 h-16", isCollapsed ? "justify-center px-4" : "gap-3")}>
-          <div className="size-10 rounded-xl gradient-bg grid place-items-center shadow-glow shrink-0">
-            <ShieldCheck className="size-5 text-primary-foreground animate-pulse" />
-          </div>
-          {!isCollapsed && (
-            <div className="animate-fade-in truncate">
-              <div className="font-display font-bold text-base leading-none tracking-tight">E-Clearance</div>
-              <div className="text-[10px] text-muted-foreground mt-1 font-medium tracking-wide uppercase">University Portal</div>
+        <div className={cn("p-6 flex items-center shrink-0 border-b border-border/40 h-16 justify-between", isCollapsed ? "lg:justify-center px-4" : "gap-3")}>
+          <div className="flex items-center gap-3">
+            <div className="size-10 rounded-xl gradient-bg grid place-items-center shadow-glow shrink-0">
+              <ShieldCheck className="size-5 text-primary-foreground animate-pulse" />
             </div>
-          )}
+            {!isCollapsed && (
+              <div className="animate-fade-in truncate">
+                <div className="font-display font-bold text-base leading-none tracking-tight">E-Clearance</div>
+                <div className="text-[10px] text-muted-foreground mt-1 font-medium tracking-wide uppercase">University Portal</div>
+              </div>
+            )}
+          </div>
+          {/* Mobile close button inside sidebar */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden size-8 -mr-2 text-muted-foreground hover:text-foreground"
+            onClick={() => setOpen(false)}
+            aria-label="Close sidebar"
+          >
+            <X className="size-5" />
+          </Button>
         </div>
         <nav className="px-3 py-4 flex-1 space-y-1 overflow-y-auto custom-scrollbar">
           {finalNav.map((item) => {
