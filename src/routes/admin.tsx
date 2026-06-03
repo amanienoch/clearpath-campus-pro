@@ -1,8 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { cn } from "@/lib/utils";
 import { useStore, store } from "@/lib/store";
-import { DEPARTMENTS, Role, User } from "@/lib/types";
+import { DEPARTMENTS, Role, User, ClearanceRequest, REQUEST_TYPE_LABEL } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +24,7 @@ import {
 import {
   LayoutDashboard, Users, BadgeCheck, FileCheck2, Clock, XCircle, TrendingUp,
   Pencil, Trash2, Plus, Activity, BookOpen, Wallet, Laptop, Home, Trophy, Calendar, Check, AlertTriangle, Search,
-  CheckCircle2, FileText, Inbox
+  CheckCircle2, FileText, Inbox, ExternalLink
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip,
@@ -50,6 +51,15 @@ function AdminPage() {
 
   // Synchronize Tab state with URL query parameter
   const [activeTab, setActiveTab] = useState("overview");
+
+  // Interactivity drill-down and filter states
+  const [overviewStatusFilter, setOverviewStatusFilter] = useState<"all" | "approved" | "pending" | "rejected">("all");
+  const [overviewDepartmentFilter, setOverviewDepartmentFilter] = useState<string>("all");
+  const [selectedRequest, setSelectedRequest] = useState<ClearanceRequest | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
+  const [userSearch, setUserSearch] = useState("");
+  const [obligationsSubTab, setObligationsSubTab] = useState("finance");
+  const [obligationsSearch, setObligationsSearch] = useState("");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -169,10 +179,17 @@ function AdminPage() {
   }, [window.location.search]);
 
   const filteredRequests = useMemo(() => {
-    if (!overviewSearch.trim()) return requests;
+    let list = requests;
+    if (overviewStatusFilter !== "all") {
+      list = list.filter(r => r.overallStatus === overviewStatusFilter);
+    }
+    if (overviewDepartmentFilter !== "all") {
+      list = list.filter(r => r.departments.some(d => d.department === overviewDepartmentFilter));
+    }
+    if (!overviewSearch.trim()) return list;
     const q = overviewSearch.toLowerCase();
     const userMap = new Map(users.map(u => [u.id, u]));
-    return requests.filter(r => {
+    return list.filter(r => {
       const user = userMap.get(r.studentId);
       return (
         r.clearanceId.toLowerCase().includes(q) ||
@@ -181,7 +198,7 @@ function AdminPage() {
         (user && user.admissionNumber && user.admissionNumber.toLowerCase().includes(q))
       );
     });
-  }, [requests, overviewSearch, users]);
+  }, [requests, overviewStatusFilter, overviewDepartmentFilter, overviewSearch, users]);
 
   return (
     <AppShell
@@ -203,10 +220,42 @@ function AdminPage() {
 
         <TabsContent value="overview" className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <BigStat icon={<FileCheck2 className="size-6 text-primary animate-pulse" />} label="Total Requests" value={stats.total} />
-            <BigStat icon={<BadgeCheck className="size-6" />} label="Approved" value={stats.approved} tone="success" />
-            <BigStat icon={<Clock className="size-6" />} label="Pending" value={stats.pending} tone="warning" />
-            <BigStat icon={<XCircle className="size-6" />} label="Rejected" value={stats.rejected} tone="destructive" />
+            <button
+              onClick={() => setOverviewStatusFilter("all")}
+              className={cn(
+                "text-left block w-full rounded-2xl transition-all cursor-pointer",
+                overviewStatusFilter === "all" ? "ring-2 ring-primary ring-offset-2 scale-[1.01] shadow-md" : "hover:scale-[1.01]"
+              )}
+            >
+              <BigStat icon={<FileCheck2 className="size-6 text-primary animate-pulse" />} label="Total Requests" value={stats.total} />
+            </button>
+            <button
+              onClick={() => setOverviewStatusFilter("approved")}
+              className={cn(
+                "text-left block w-full rounded-2xl transition-all cursor-pointer",
+                overviewStatusFilter === "approved" ? "ring-2 ring-success ring-offset-2 scale-[1.01] shadow-md" : "hover:scale-[1.01]"
+              )}
+            >
+              <BigStat icon={<BadgeCheck className="size-6" />} label="Approved" value={stats.approved} tone="success" />
+            </button>
+            <button
+              onClick={() => setOverviewStatusFilter("pending")}
+              className={cn(
+                "text-left block w-full rounded-2xl transition-all cursor-pointer",
+                overviewStatusFilter === "pending" ? "ring-2 ring-warning ring-offset-2 scale-[1.01] shadow-md" : "hover:scale-[1.01]"
+              )}
+            >
+              <BigStat icon={<Clock className="size-6" />} label="Pending" value={stats.pending} tone="warning" />
+            </button>
+            <button
+              onClick={() => setOverviewStatusFilter("rejected")}
+              className={cn(
+                "text-left block w-full rounded-2xl transition-all cursor-pointer",
+                overviewStatusFilter === "rejected" ? "ring-2 ring-destructive ring-offset-2 scale-[1.01] shadow-md" : "hover:scale-[1.01]"
+              )}
+            >
+              <BigStat icon={<XCircle className="size-6" />} label="Rejected" value={stats.rejected} tone="destructive" />
+            </button>
           </div>
 
           <div className="grid lg:grid-cols-3 gap-6">
@@ -219,9 +268,21 @@ function AdminPage() {
                   <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 12 }} />
                   <Legend />
-                  <Bar dataKey="approved" fill="oklch(0.65 0.18 155)" stackId="a" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="pending" fill="oklch(0.78 0.16 75)" stackId="a" />
-                  <Bar dataKey="rejected" fill="oklch(0.6 0.23 27)" stackId="a" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="approved" fill="oklch(0.65 0.18 155)" stackId="a" radius={[0, 0, 0, 0]}>
+                    {deptData.map((entry, index) => (
+                      <Cell key={`cell-app-${index}`} className="cursor-pointer hover:opacity-85" onClick={() => { setOverviewDepartmentFilter(entry.name); setOverviewStatusFilter("approved"); }} />
+                    ))}
+                  </Bar>
+                  <Bar dataKey="pending" fill="oklch(0.78 0.16 75)" stackId="a">
+                    {deptData.map((entry, index) => (
+                      <Cell key={`cell-pend-${index}`} className="cursor-pointer hover:opacity-85" onClick={() => { setOverviewDepartmentFilter(entry.name); setOverviewStatusFilter("pending"); }} />
+                    ))}
+                  </Bar>
+                  <Bar dataKey="rejected" fill="oklch(0.6 0.23 27)" stackId="a" radius={[8, 8, 0, 0]}>
+                    {deptData.map((entry, index) => (
+                      <Cell key={`cell-rej-${index}`} className="cursor-pointer hover:opacity-85" onClick={() => { setOverviewDepartmentFilter(entry.name); setOverviewStatusFilter("rejected"); }} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -230,7 +291,17 @@ function AdminPage() {
               <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
                   <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={90} paddingAngle={4}>
-                    {pieData.map((e) => <Cell key={e.name} fill={e.color} />)}
+                    {pieData.map((e) => (
+                      <Cell
+                        key={e.name}
+                        fill={e.color}
+                        className="cursor-pointer hover:opacity-85"
+                        onClick={() => {
+                          const statusMap = { Approved: "approved", Pending: "pending", Rejected: "rejected" };
+                          setOverviewStatusFilter(statusMap[e.name]);
+                        }}
+                      />
+                    ))}
                   </Pie>
                   <Tooltip contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 12 }} />
                   <Legend />
@@ -241,18 +312,33 @@ function AdminPage() {
 
           <div className="glass-strong rounded-2xl overflow-hidden border border-border/40">
             <div className="p-5 border-b border-border/40 flex items-center justify-between flex-wrap gap-3">
-              <h3 className="font-display font-semibold text-base sm:text-lg">Recent Requests</h3>
-
-              {overviewSearch && (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground font-medium">Filtering by search: &ldquo;{overviewSearch}&rdquo;</span>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs font-semibold" onClick={() => {
-                    setOverviewSearch("");
-                    const newUrl = window.location.pathname + "?tab=overview";
-                    window.history.replaceState(null, "", newUrl);
-                  }}>Clear filter</Button>
+              <div className="space-y-1">
+                <h3 className="font-display font-semibold text-base sm:text-lg">Recent Requests</h3>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {overviewStatusFilter !== "all" && (
+                    <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary font-semibold">
+                      Status: <span className="capitalize font-bold">{overviewStatusFilter}</span>
+                      <button onClick={() => setOverviewStatusFilter("all")} className="hover:text-foreground ml-1 font-bold font-mono">×</button>
+                    </span>
+                  )}
+                  {overviewDepartmentFilter !== "all" && (
+                    <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary font-semibold">
+                      Dept: <span className="font-bold">{overviewDepartmentFilter}</span>
+                      <button onClick={() => setOverviewDepartmentFilter("all")} className="hover:text-foreground ml-1 font-bold font-mono">×</button>
+                    </span>
+                  )}
+                  {overviewSearch && (
+                    <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary font-semibold">
+                      Search: <span className="font-bold">&ldquo;{overviewSearch}&rdquo;</span>
+                      <button onClick={() => {
+                        setOverviewSearch("");
+                        const newUrl = window.location.pathname + "?tab=overview";
+                        window.history.replaceState(null, "", newUrl);
+                      }} className="hover:text-foreground ml-1 font-bold font-mono">×</button>
+                    </span>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -274,11 +360,25 @@ function AdminPage() {
                       </td>
                     </tr>
                   ) : filteredRequests.slice(0, 8).map((r, i) => (
-                    <tr key={r.id} className="border-t row-hover animate-fade-up font-medium" style={{ animationDelay: `${i * 40}ms` }}>
+                    <tr
+                      key={r.id}
+                      onClick={() => setSelectedRequest(r)}
+                      className="border-t hover:bg-muted/40 transition-colors cursor-pointer animate-fade-up font-medium"
+                      style={{ animationDelay: `${i * 40}ms` }}
+                    >
                       <td className="px-4 py-3">
-                        <div className="font-bold">{r.studentName}</div>
-                        <div className="text-xs text-muted-foreground font-medium">{r.matricNo}</div>
-                        <div className="text-xs text-muted-foreground font-medium">{(users.find(u=>u.id===r.studentId)||{}).admissionNumber ?? "—"}</div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const targetStudent = users.find(u => u.id === r.studentId);
+                            if (targetStudent) setSelectedStudent(targetStudent);
+                          }}
+                          className="font-bold hover:underline hover:text-primary text-left block"
+                        >
+                          {r.studentName}
+                        </button>
+                        <div className="text-xs text-muted-foreground font-semibold">{r.matricNo}</div>
+                        <div className="text-xs text-muted-foreground font-semibold">{(users.find(u=>u.id===r.studentId)||{}).admissionNumber ?? "—"}</div>
                       </td>
                       <td className="px-4 py-3 font-mono whitespace-nowrap">{r.clearanceId}</td>
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{new Date(r.submittedAt).toLocaleDateString()}</td>
@@ -294,14 +394,77 @@ function AdminPage() {
         <TabsContent value="analytics" className="space-y-6">
           {/* Executive KPI Statistics Grid */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <BigStat icon={<Users className="size-6 text-primary" />} label="Total Students" value={totalStudents} />
-            <BigStat icon={<CheckCircle2 className="size-6 text-indigo-500" />} label="Total Users" value={totalUsers} />
-            <BigStat icon={<CheckCircle2 className="size-6 text-success animate-pulse" />} label="Cleared Students" value={clearedCount} tone="success" />
-            <BigStat icon={<Clock className="size-6 text-warning" />} label="Pending Requests" value={pendingCount} tone="warning" />
-            <BigStat icon={<XCircle className="size-6 text-destructive" />} label="Rejected Requests" value={rejectedCount} tone="destructive" />
-            <BigStat icon={<BadgeCheck className="size-6 text-amber-500 animate-pulse" />} label="Certificates Issued" value={certsIssued} />
-            <BigStat icon={<AlertTriangle className="size-6 text-red-500" />} label="Outstanding Obligations" value={totalObligations} tone="warning" />
-            <BigStat icon={<Wallet className="size-6 text-destructive animate-pulse" />} label="Outstanding Fees" value={NGN(totalOutstandingFees)} tone="destructive" />
+            <button
+              onClick={() => {
+                setUserSearch("student");
+                handleTabChange("users");
+              }}
+              className="text-left w-full hover:scale-[1.01] transition-transform cursor-pointer"
+            >
+              <BigStat icon={<Users className="size-6 text-primary" />} label="Total Students" value={totalStudents} />
+            </button>
+            <button
+              onClick={() => {
+                setUserSearch("");
+                handleTabChange("users");
+              }}
+              className="text-left w-full hover:scale-[1.01] transition-transform cursor-pointer"
+            >
+              <BigStat icon={<CheckCircle2 className="size-6 text-indigo-500" />} label="Total Users" value={totalUsers} />
+            </button>
+            <button
+              onClick={() => {
+                setOverviewStatusFilter("approved");
+                handleTabChange("overview");
+              }}
+              className="text-left w-full hover:scale-[1.01] transition-transform cursor-pointer"
+            >
+              <BigStat icon={<CheckCircle2 className="size-6 text-success animate-pulse" />} label="Cleared Students" value={clearedCount} tone="success" />
+            </button>
+            <button
+              onClick={() => {
+                setOverviewStatusFilter("pending");
+                handleTabChange("overview");
+              }}
+              className="text-left w-full hover:scale-[1.01] transition-transform cursor-pointer"
+            >
+              <BigStat icon={<Clock className="size-6 text-warning" />} label="Pending Requests" value={pendingCount} tone="warning" />
+            </button>
+            <button
+              onClick={() => {
+                setOverviewStatusFilter("rejected");
+                handleTabChange("overview");
+              }}
+              className="text-left w-full hover:scale-[1.01] transition-transform cursor-pointer"
+            >
+              <BigStat icon={<XCircle className="size-6 text-destructive" />} label="Rejected Requests" value={rejectedCount} tone="destructive" />
+            </button>
+            <button
+              onClick={() => {
+                setOverviewStatusFilter("approved");
+                handleTabChange("overview");
+              }}
+              className="text-left w-full hover:scale-[1.01] transition-transform cursor-pointer"
+            >
+              <BigStat icon={<BadgeCheck className="size-6 text-amber-500 animate-pulse" />} label="Certificates Issued" value={certsIssued} />
+            </button>
+            <button
+              onClick={() => {
+                handleTabChange("obligations");
+              }}
+              className="text-left w-full hover:scale-[1.01] transition-transform cursor-pointer"
+            >
+              <BigStat icon={<AlertTriangle className="size-6 text-red-500" />} label="Outstanding Obligations" value={totalObligations} tone="warning" />
+            </button>
+            <button
+              onClick={() => {
+                setObligationsSubTab("finance");
+                handleTabChange("obligations");
+              }}
+              className="text-left w-full hover:scale-[1.01] transition-transform cursor-pointer"
+            >
+              <BigStat icon={<Wallet className="size-6 text-destructive animate-pulse" />} label="Outstanding Fees" value={NGN(totalOutstandingFees)} tone="destructive" />
+            </button>
           </div>
 
           <div className="grid lg:grid-cols-2 gap-6 mt-6">
@@ -325,7 +488,18 @@ function AdminPage() {
               <ResponsiveContainer width="100%" height={260}>
                 <PieChart>
                   <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={4}>
-                    {pieData.map((e) => <Cell key={e.name} fill={e.color} />)}
+                    {pieData.map((e) => (
+                      <Cell
+                        key={e.name}
+                        fill={e.color}
+                        className="cursor-pointer hover:opacity-85"
+                        onClick={() => {
+                          const statusMap = { Approved: "approved", Pending: "pending", Rejected: "rejected" };
+                          setOverviewStatusFilter(statusMap[e.name]);
+                          handleTabChange("overview");
+                        }}
+                      />
+                    ))}
                   </Pie>
                   <Tooltip contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 12 }} />
                   <Legend verticalAlign="bottom" height={36} tick={{ fontSize: 11 }} />
@@ -342,7 +516,18 @@ function AdminPage() {
                   <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} domain={[0, 100]} />
                   <Tooltip contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 12 }} />
-                  <Bar dataKey="rate" fill="oklch(0.65 0.18 155)" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="rate" fill="oklch(0.65 0.18 155)" radius={[8, 8, 0, 0]}>
+                    {deptRates.map((entry, index) => (
+                      <Cell
+                        key={`cell-rate-${index}`}
+                        className="cursor-pointer hover:opacity-85"
+                        onClick={() => {
+                          setOverviewDepartmentFilter(entry.name);
+                          handleTabChange("overview");
+                        }}
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -356,7 +541,26 @@ function AdminPage() {
                   <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 12 }} />
-                  <Bar dataKey="obligations" fill="oklch(0.6 0.23 27)" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="obligations" radius={[8, 8, 0, 0]}>
+                    {obligationsByDept.map((entry, index) => (
+                      <Cell
+                        key={`cell-ob-${index}`}
+                        fill="oklch(0.6 0.23 27)"
+                        className="cursor-pointer hover:opacity-85"
+                        onClick={() => {
+                          const subtabMap = {
+                            Finance: "finance",
+                            Library: "library",
+                            ICT: "ict",
+                            Hostel: "hostel",
+                            Sports: "sports",
+                          };
+                          setObligationsSubTab(subtabMap[entry.name] || "finance");
+                          handleTabChange("obligations");
+                        }}
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -378,11 +582,18 @@ function AdminPage() {
         </TabsContent>
 
         <TabsContent value="users">
-          <UsersTab users={users} />
+          <UsersTab users={users} search={userSearch} setSearch={setUserSearch} onSelectStudent={setSelectedStudent} />
         </TabsContent>
 
         <TabsContent value="obligations">
-          <ObligationsTab users={users} />
+          <ObligationsTab
+            users={users}
+            activeTab={obligationsSubTab}
+            setActiveTab={setObligationsSubTab}
+            search={obligationsSearch}
+            setSearch={setObligationsSearch}
+            onSelectStudent={setSelectedStudent}
+          />
         </TabsContent>
 
         <TabsContent value="activity">
@@ -414,6 +625,9 @@ function AdminPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <RequestDetailDialog open={!!selectedRequest} onClose={() => setSelectedRequest(null)} req={selectedRequest} />
+      <StudentDetailDialog open={!!selectedStudent} onClose={() => setSelectedStudent(null)} student={selectedStudent} />
     </AppShell>
   );
 }
@@ -434,11 +648,10 @@ function BigStat({ icon, label, value, trend, tone }: { icon: React.ReactNode; l
   );
 }
 
-function UsersTab({ users }: { users: User[] }) {
+function UsersTab({ users, search, setSearch, onSelectStudent }: { users: User[]; search: string; setSearch: (s: string) => void; onSelectStudent: (u: User) => void }) {
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<User | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
-  const [search, setSearch] = useState("");
 
   const startNew = () => {
     setEdit({ id: crypto.randomUUID(), name: "", email: "", role: "student", password: "" });
@@ -538,13 +751,33 @@ function UsersTab({ users }: { users: User[] }) {
                   </td>
                 </tr>
               ) : filteredUsers.map((u) => (
-                <tr key={u.id} className="border-t hover:bg-muted/30 font-medium">
-                  <td className="px-4 py-3 font-bold whitespace-nowrap">{u.name}</td>
+                <tr
+                  key={u.id}
+                  onClick={() => {
+                    if (u.role === "student") onSelectStudent(u);
+                  }}
+                  className={cn("border-t hover:bg-muted/30 font-medium", u.role === "student" && "cursor-pointer")}
+                >
+                  <td className="px-4 py-3 font-bold whitespace-nowrap">
+                    {u.role === "student" ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectStudent(u);
+                        }}
+                        className="hover:underline hover:text-primary font-bold text-left block cursor-pointer"
+                      >
+                        {u.name}
+                      </button>
+                    ) : (
+                      u.name
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-muted-foreground whitespace-nowrap font-medium">{u.email}</td>
                   <td className="px-4 py-3 capitalize font-semibold">{u.role}</td>
                   <td className="px-4 py-3 text-muted-foreground font-semibold">{u.department ?? "—"}</td>
                   <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{u.admissionNumber ?? "—"}</td>
-                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                  <td className="px-4 py-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                     <Button size="sm" variant="ghost" onClick={() => startEdit(u)} aria-label={`Edit ${u.name}`}><Pencil className="size-3.5" /></Button>
                     <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(u)} aria-label={`Delete ${u.name}`}><Trash2 className="size-3.5 text-destructive" /></Button>
                   </td>
@@ -718,7 +951,21 @@ function StudentSelect({ value, onChange, students }: { value: string; onChange:
   );
 }
 
-function ObligationsTab({ users }: { users: User[] }) {
+function ObligationsTab({
+  users,
+  activeTab,
+  setActiveTab,
+  search,
+  setSearch,
+  onSelectStudent
+}: {
+  users: User[];
+  activeTab: string;
+  setActiveTab: (val: string) => void;
+  search: string;
+  setSearch: (val: string) => void;
+  onSelectStudent: (u: User) => void;
+}) {
   const allStudents = useMemo(() => users.filter((u) => u.role === "student"), [users]);
 
   const loans = useStore((s) => s.loans);
@@ -742,9 +989,6 @@ function ObligationsTab({ users }: { users: User[] }) {
 
   const [sportsOpen, setSportsOpen] = useState(false);
   const [sportsEdit, setSportsEdit] = useState<{ id?: string; studentId: string; equipment: string; returned: boolean; replacementCost: number } | null>(null);
-
-  // Global search input for obligations
-  const [search, setSearch] = useState("");
 
   // Sync obligations tab state with Command Palette redirects
   useEffect(() => {
@@ -833,7 +1077,7 @@ function ObligationsTab({ users }: { users: User[] }) {
         </div>
       </div>
 
-      <Tabs defaultValue="finance" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="glass rounded-xl p-1 flex-wrap h-auto w-fit">
           <TabsTrigger value="finance" className="rounded-lg flex items-center gap-1.5"><Wallet className="size-3.5" /> Finance</TabsTrigger>
           <TabsTrigger value="library" className="rounded-lg flex items-center gap-1.5"><BookOpen className="size-3.5" /> Library</TabsTrigger>
@@ -875,9 +1119,18 @@ function ObligationsTab({ users }: { users: User[] }) {
                 ) : filteredFees.map((f) => {
                   const student = users.find((u) => u.id === f.studentId);
                   return (
-                    <tr key={f.id} className="border-t hover:bg-muted/30 font-medium">
-                      <td className="px-4 py-3">
-                        <div className="font-bold">{student?.name || "Unknown"}</div>
+                    <tr
+                      key={f.id}
+                      onClick={() => { setFeeEdit(f); setFeeOpen(true); }}
+                      className="border-t hover:bg-muted/30 font-medium cursor-pointer"
+                    >
+                      <td className="px-4 py-3" onClick={(e) => {
+                        e.stopPropagation();
+                        if (student) onSelectStudent(student);
+                      }}>
+                        <button className="font-bold hover:underline hover:text-primary text-left block">
+                          {student?.name || "Unknown"}
+                        </button>
                         <div className="text-xs text-muted-foreground font-semibold">{student?.matricNo || "N/A"}</div>
                       </td>
                       <td className="px-4 py-3 font-semibold text-foreground/80">{f.item}</td>
@@ -885,7 +1138,7 @@ function ObligationsTab({ users }: { users: User[] }) {
                       <td className="px-4 py-3">
                         <StatusBadge status={f.amountDue > 0 ? "pending" : "approved"} />
                       </td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap space-x-1">
+                      <td className="px-4 py-3 text-right whitespace-nowrap space-x-1" onClick={(e) => e.stopPropagation()}>
                         {f.amountDue > 0 && (
                           <Button size="sm" variant="outline" className="text-success hover:text-success border-success/30 hover:bg-success/5 animate-pulse-ring" onClick={async () => {
                             try {
@@ -950,9 +1203,18 @@ function ObligationsTab({ users }: { users: User[] }) {
                 ) : filteredLoans.map((l) => {
                   const student = users.find((u) => u.id === l.studentId);
                   return (
-                    <tr key={l.id} className="border-t hover:bg-muted/30 font-medium">
-                      <td className="px-4 py-3">
-                        <div className="font-bold">{student?.name || "Unknown"}</div>
+                    <tr
+                      key={l.id}
+                      onClick={() => { setLoanEdit(l); setLoanOpen(true); }}
+                      className="border-t hover:bg-muted/30 font-medium cursor-pointer"
+                    >
+                      <td className="px-4 py-3" onClick={(e) => {
+                        e.stopPropagation();
+                        if (student) onSelectStudent(student);
+                      }}>
+                        <button className="font-bold hover:underline hover:text-primary text-left block">
+                          {student?.name || "Unknown"}
+                        </button>
                         <div className="text-xs text-muted-foreground font-semibold">{student?.matricNo || "N/A"}</div>
                       </td>
                       <td className="px-4 py-3 font-semibold text-foreground/80">{l.bookTitle}</td>
@@ -961,7 +1223,7 @@ function ObligationsTab({ users }: { users: User[] }) {
                       <td className="px-4 py-3">
                         <StatusBadge status={l.returned ? "approved" : "pending"} />
                       </td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap space-x-1">
+                      <td className="px-4 py-3 text-right whitespace-nowrap space-x-1" onClick={(e) => e.stopPropagation()}>
                         {!l.returned && (
                           <Button size="sm" variant="outline" className="text-success hover:text-success border-success/30 hover:bg-success/5 animate-pulse-ring" onClick={async () => {
                             try {
@@ -1025,9 +1287,18 @@ function ObligationsTab({ users }: { users: User[] }) {
                 ) : filteredAssets.map((a) => {
                   const student = users.find((u) => u.id === a.studentId);
                   return (
-                    <tr key={a.id} className="border-t hover:bg-muted/30 font-medium">
-                      <td className="px-4 py-3">
-                        <div className="font-bold">{student?.name || "Unknown"}</div>
+                    <tr
+                      key={a.id}
+                      onClick={() => { setAssetEdit(a); setAssetOpen(true); }}
+                      className="border-t hover:bg-muted/30 font-medium cursor-pointer"
+                    >
+                      <td className="px-4 py-3" onClick={(e) => {
+                        e.stopPropagation();
+                        if (student) onSelectStudent(student);
+                      }}>
+                        <button className="font-bold hover:underline hover:text-primary text-left block">
+                          {student?.name || "Unknown"}
+                        </button>
                         <div className="text-xs text-muted-foreground font-semibold">{student?.matricNo || "N/A"}</div>
                       </td>
                       <td className="px-4 py-3 font-semibold text-foreground/80">{a.asset}</td>
@@ -1035,7 +1306,7 @@ function ObligationsTab({ users }: { users: User[] }) {
                       <td className="px-4 py-3">
                         <StatusBadge status={a.returned ? "approved" : "pending"} />
                       </td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap space-x-1">
+                      <td className="px-4 py-3 text-right whitespace-nowrap space-x-1" onClick={(e) => e.stopPropagation()}>
                         {!a.returned && (
                           <Button size="sm" variant="outline" className="text-success hover:text-success border-success/30 hover:bg-success/5 animate-pulse-ring" onClick={async () => {
                             try {
@@ -1099,9 +1370,18 @@ function ObligationsTab({ users }: { users: User[] }) {
                 ) : filteredHostels.map((h) => {
                   const student = users.find((u) => u.id === h.studentId);
                   return (
-                    <tr key={h.id} className="border-t hover:bg-muted/30 font-medium">
-                      <td className="px-4 py-3">
-                        <div className="font-bold">{student?.name || "Unknown"}</div>
+                    <tr
+                      key={h.id}
+                      onClick={() => { setHostelEdit(h); setHostelOpen(true); }}
+                      className="border-t hover:bg-muted/30 font-medium cursor-pointer"
+                    >
+                      <td className="px-4 py-3" onClick={(e) => {
+                        e.stopPropagation();
+                        if (student) onSelectStudent(student);
+                      }}>
+                        <button className="font-bold hover:underline hover:text-primary text-left block">
+                          {student?.name || "Unknown"}
+                        </button>
                         <div className="text-xs text-muted-foreground font-semibold">{student?.matricNo || "N/A"}</div>
                       </td>
                       <td className="px-4 py-3 font-semibold text-foreground/80">{h.room}</td>
@@ -1109,7 +1389,7 @@ function ObligationsTab({ users }: { users: User[] }) {
                       <td className="px-4 py-3">
                         <StatusBadge status={(h.checkedOut && h.damageFee === 0) ? "approved" : "pending"} />
                       </td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap space-x-1">
+                      <td className="px-4 py-3 text-right whitespace-nowrap space-x-1" onClick={(e) => e.stopPropagation()}>
                         {(!h.checkedOut || h.damageFee > 0) && (
                           <Button size="sm" variant="outline" className="text-success hover:text-success border-success/30 hover:bg-success/5 animate-pulse-ring" onClick={async () => {
                             try {
@@ -1173,9 +1453,18 @@ function ObligationsTab({ users }: { users: User[] }) {
                 ) : filteredSports.map((s) => {
                   const student = users.find((u) => u.id === s.studentId);
                   return (
-                    <tr key={s.id} className="border-t hover:bg-muted/30 font-medium">
-                      <td className="px-4 py-3">
-                        <div className="font-bold">{student?.name || "Unknown"}</div>
+                    <tr
+                      key={s.id}
+                      onClick={() => { setSportsEdit(s); setSportsOpen(true); }}
+                      className="border-t hover:bg-muted/30 font-medium cursor-pointer"
+                    >
+                      <td className="px-4 py-3" onClick={(e) => {
+                        e.stopPropagation();
+                        if (student) onSelectStudent(student);
+                      }}>
+                        <button className="font-bold hover:underline hover:text-primary text-left block">
+                          {student?.name || "Unknown"}
+                        </button>
                         <div className="text-xs text-muted-foreground font-semibold">{student?.matricNo || "N/A"}</div>
                       </td>
                       <td className="px-4 py-3 font-semibold text-foreground/80">{s.equipment}</td>
@@ -1183,7 +1472,7 @@ function ObligationsTab({ users }: { users: User[] }) {
                       <td className="px-4 py-3">
                         <StatusBadge status={s.returned ? "approved" : "pending"} />
                       </td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap space-x-1">
+                      <td className="px-4 py-3 text-right whitespace-nowrap space-x-1" onClick={(e) => e.stopPropagation()}>
                         {!s.returned && (
                           <Button size="sm" variant="outline" className="text-success hover:text-success border-success/30 hover:bg-success/5 animate-pulse-ring" onClick={async () => {
                             try {
@@ -1375,6 +1664,224 @@ function SportsDialog({ open, onClose, item, students }: { open: boolean; onClos
           <div className="space-y-1.5"><Label htmlFor="scost">Replacement / Fine (KES)</Label><Input id="scost" type="number" value={draft.replacementCost || ""} onChange={(e) => setDraft({ ...draft, replacementCost: Number(e.target.value) })} placeholder="0" /></div>
           <div className="flex items-center gap-2 py-1"><input type="checkbox" id="sret" checked={draft.returned} onChange={(e) => setDraft({ ...draft, returned: e.target.checked, replacementCost: e.target.checked ? 0 : draft.replacementCost })} className="size-4 rounded border-gray-350" /><Label htmlFor="sret" className="cursor-pointer text-sm font-semibold text-muted-foreground hover:text-foreground">Mark as Returned</Label></div>
           <div className="flex justify-end gap-2 pt-2"><Button variant="outline" onClick={onClose}>Cancel</Button><Button className="gradient-bg text-primary-foreground shadow-elegant" onClick={save}>Save</Button></div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function Info({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div>
+      <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">{label}</div>
+      <div className={`text-sm font-semibold mt-0.5 text-foreground ${mono ? "font-mono" : ""}`}>{value}</div>
+    </div>
+  );
+}
+
+function RequestDetailDialog({ open, onClose, req }: { open: boolean; onClose: () => void; req: ClearanceRequest | null }) {
+  if (!req) return null;
+  
+  const users = useStore((s) => s.users);
+  const student = users.find((u) => u.id === req.studentId);
+  const admissionNo = student?.admissionNumber ?? "—";
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl flex items-center justify-between gap-4 flex-wrap">
+            <span>Clearance Request Details</span>
+            <span className="font-mono text-sm text-muted-foreground px-2 py-0.5 bg-muted rounded-lg font-bold">{req.clearanceId}</span>
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4 rounded-xl bg-muted/40 border">
+            <Info label="Student Name" value={req.studentName} />
+            <Info label="Matric Number" value={req.matricNo} />
+            <Info label="Admission Number" value={admissionNo} />
+            <Info label="Program" value={req.program} />
+            <Info label="Faculty" value={req.faculty} />
+            <Info label="Level" value={req.level} />
+            <Info label="Email" value={req.email} />
+            <Info label="Clearance Type" value={REQUEST_TYPE_LABEL[req.requestType]} />
+            <div className="flex flex-col">
+              <span className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-0.5">Overall Status</span>
+              <StatusBadge status={req.overallStatus} />
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-1">Reason for request</div>
+            <div className="text-sm border p-3 rounded-lg bg-card/50 italic">&ldquo;{req.reason}&rdquo;</div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Department reviews</div>
+            <div className="space-y-2">
+              {req.departments.map((d) => (
+                <div key={d.department} className="flex items-start justify-between gap-4 p-3 rounded-xl border bg-card/30">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold text-sm">{d.department} Department</div>
+                    {d.reviewedBy && (
+                      <div className="text-xs text-muted-foreground font-medium mt-0.5">
+                        Reviewed by <span className="font-semibold text-foreground">{d.reviewedBy}</span> on {d.reviewedAt ? new Date(d.reviewedAt).toLocaleString() : "N/A"}
+                      </div>
+                    )}
+                    <div className="text-xs text-muted-foreground mt-1.5 bg-muted/30 p-2 rounded border">
+                      <span className="font-bold text-muted-foreground/80">Remarks: </span>
+                      {d.remarks || "No remarks provided."}
+                    </div>
+                  </div>
+                  <StatusBadge status={d.status} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {req.overallStatus === "approved" && (
+            <div className="p-4 rounded-xl border border-success/30 bg-success/5 flex items-center justify-between gap-4 flex-wrap">
+              <div className="space-y-1">
+                <div className="font-bold text-sm text-success">Certificate Issued & Valid</div>
+                <div className="text-xs text-muted-foreground">The clearance certificate is authentic and verifiable online.</div>
+              </div>
+              <Button asChild className="gradient-bg text-primary-foreground shadow-elegant">
+                <Link to="/verify" search={{ id: req.clearanceId }} target="_blank">
+                  Verify Certificate <ExternalLink className="size-4 ml-1.5" />
+                </Link>
+              </Button>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function StudentDetailDialog({ open, onClose, student }: { open: boolean; onClose: () => void; student: User | null }) {
+  if (!student) return null;
+
+  const requests = useStore((s) => s.requests);
+  const loans = useStore((s) => s.loans);
+  const fees = useStore((s) => s.fees);
+  const assets = useStore((s) => s.assets);
+  const hostel = useStore((s) => s.hostel);
+  const sports = useStore((s) => s.sports);
+
+  const studentRequests = useMemo(() => requests.filter((r) => r.studentId === student.id), [requests, student.id]);
+
+  const studentFees = useMemo(() => fees.filter((f) => f.studentId === student.id && Number(f.amountDue) > 0), [fees, student.id]);
+  const studentLoans = useMemo(() => loans.filter((l) => l.studentId === student.id && !l.returned), [loans, student.id]);
+  const studentAssets = useMemo(() => assets.filter((a) => a.studentId === student.id && !a.returned), [assets, student.id]);
+  const studentHostel = useMemo(() => hostel.filter((h) => h.studentId === student.id && (!h.checkedOut || Number(h.damageFee) > 0)), [hostel, student.id]);
+  const studentSports = useMemo(() => sports.filter((s) => s.studentId === student.id && !s.returned), [sports, student.id]);
+
+  const totalOutstanding = studentFees.length + studentLoans.length + studentAssets.length + studentHostel.length + studentSports.length;
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl flex items-center justify-between gap-4 flex-wrap">
+            <span>Student Profile & Status</span>
+            {student.admissionNumber && (
+              <span className="font-mono text-sm text-muted-foreground px-2 py-0.5 bg-muted rounded-lg font-bold">Adm: {student.admissionNumber}</span>
+            )}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4 rounded-xl bg-muted/40 border">
+            <Info label="Full Name" value={student.name} />
+            <Info label="Matric Number" value={student.matricNo || "—"} />
+            <Info label="Admission Number" value={student.admissionNumber || "—"} />
+            <Info label="Program" value={student.program || "—"} />
+            <Info label="Faculty" value={student.faculty || "—"} />
+            <Info label="Level" value={student.level || "—"} />
+            <Info label="Email" value={student.email} />
+          </div>
+
+          <div className="space-y-3">
+            <h4 className="font-display font-bold text-base flex items-center gap-2">
+              <BookOpen className="size-4 text-primary" /> Outstanding Obligations ({totalOutstanding})
+            </h4>
+            {totalOutstanding === 0 ? (
+              <div className="p-4 border border-success/35 bg-success/5 text-success rounded-xl flex items-center gap-2 text-xs font-bold shadow-sm">
+                <Check className="size-4 animate-pulse" /> All clear! No outstanding obligations in any department.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                {studentFees.map((f) => (
+                  <div key={f.id} className="flex justify-between items-center text-xs p-3 rounded-lg border border-destructive/20 bg-destructive/5 font-semibold">
+                    <div>
+                      <div className="font-bold text-destructive">Finance Dept · Fee Balance</div>
+                      <div className="text-muted-foreground font-medium mt-0.5">{f.item}</div>
+                    </div>
+                    <div className="font-mono font-bold text-destructive text-sm">{NGN(f.amountDue)}</div>
+                  </div>
+                ))}
+                {studentLoans.map((l) => (
+                  <div key={l.id} className="flex justify-between items-center text-xs p-3 rounded-lg border border-destructive/20 bg-destructive/5 font-semibold">
+                    <div>
+                      <div className="font-bold text-destructive">Library Dept · Overdue Book</div>
+                      <div className="text-muted-foreground font-medium mt-0.5">{l.bookTitle} (Due {new Date(l.dueDate).toLocaleDateString()})</div>
+                    </div>
+                    {l.fineAmount > 0 && <div className="font-mono font-bold text-destructive text-sm">{NGN(l.fineAmount)}</div>}
+                  </div>
+                ))}
+                {studentAssets.map((a) => (
+                  <div key={a.id} className="flex justify-between items-center text-xs p-3 rounded-lg border border-destructive/20 bg-destructive/5 font-semibold">
+                    <div>
+                      <div className="font-bold text-destructive">ICT Dept · Outstanding Asset</div>
+                      <div className="text-muted-foreground font-medium mt-0.5">{a.asset}</div>
+                    </div>
+                    {a.replacementCost > 0 && <div className="font-mono font-bold text-destructive text-sm">{NGN(a.replacementCost)} liability</div>}
+                  </div>
+                ))}
+                {studentHostel.map((h) => (
+                  <div key={h.id} className="flex justify-between items-center text-xs p-3 rounded-lg border border-destructive/20 bg-destructive/5 font-semibold">
+                    <div>
+                      <div className="font-bold text-destructive">Hostel Dept · Room Assignment</div>
+                      <div className="text-muted-foreground font-medium mt-0.5">{h.room} {!h.checkedOut && "· Pending checkout"}</div>
+                    </div>
+                    {h.damageFee > 0 && <div className="font-mono font-bold text-destructive text-sm">{NGN(h.damageFee)} damage charge</div>}
+                  </div>
+                ))}
+                {studentSports.map((s) => (
+                  <div key={s.id} className="flex justify-between items-center text-xs p-3 rounded-lg border border-destructive/20 bg-destructive/5 font-semibold">
+                    <div>
+                      <div className="font-bold text-destructive">Sports Dept · Loaned Kit/Equipment</div>
+                      <div className="text-muted-foreground font-medium mt-0.5">{s.equipment}</div>
+                    </div>
+                    {s.replacementCost > 0 && <div className="font-mono font-bold text-destructive text-sm">{NGN(s.replacementCost)} liability</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <h4 className="font-display font-bold text-base flex items-center gap-2">
+              <FileText className="size-4 text-primary" /> Clearance History ({studentRequests.length})
+            </h4>
+            {studentRequests.length === 0 ? (
+              <div className="p-4 border rounded-xl text-center text-muted-foreground text-xs font-semibold bg-muted/20 select-none">
+                No clearance requests submitted yet.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                {studentRequests.map((r) => (
+                  <div key={r.id} className="flex justify-between items-center p-3 rounded-lg border bg-card font-semibold text-xs">
+                    <div>
+                      <div className="font-bold text-foreground">{REQUEST_TYPE_LABEL[r.requestType]}</div>
+                      <div className="text-muted-foreground font-mono font-medium mt-0.5">{r.clearanceId} &middot; {new Date(r.submittedAt).toLocaleDateString()}</div>
+                    </div>
+                    <StatusBadge status={r.overallStatus} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

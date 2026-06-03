@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { cn } from "@/lib/utils";
 import { useAuthUser, useStore, store } from "@/lib/store";
 import { ClearanceRequest, ClearanceStatus, Department, REQUEST_TYPE_LABEL } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -71,10 +72,34 @@ function DepartmentPage() {
     >
       <div className="space-y-8">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard icon={<Inbox className="size-5 text-primary" />} label="Total Requests" value={stats.total} />
-          <StatCard icon={<CheckCircle2 className="size-5 text-success" />} label="Approved" value={stats.approved} />
-          <StatCard icon={<Clock className="size-5 text-warning" />} label="Pending" value={stats.pending} />
-          <StatCard icon={<XCircle className="size-5 text-destructive" />} label="Rejected" value={stats.rejected} />
+          <StatCard
+            icon={<Inbox className="size-5 text-primary" />}
+            label="Total Requests"
+            value={stats.total}
+            onClick={() => setFilter("all")}
+            active={filter === "all"}
+          />
+          <StatCard
+            icon={<CheckCircle2 className="size-5 text-success" />}
+            label="Approved"
+            value={stats.approved}
+            onClick={() => setFilter("approved")}
+            active={filter === "approved"}
+          />
+          <StatCard
+            icon={<Clock className="size-5 text-warning" />}
+            label="Pending"
+            value={stats.pending}
+            onClick={() => setFilter("pending")}
+            active={filter === "pending"}
+          />
+          <StatCard
+            icon={<XCircle className="size-5 text-destructive" />}
+            label="Rejected"
+            value={stats.rejected}
+            onClick={() => setFilter("rejected")}
+            active={filter === "rejected"}
+          />
         </div>
 
         <div className="glass-strong rounded-2xl p-5 flex flex-col sm:flex-row gap-3">
@@ -141,15 +166,37 @@ function DepartmentPage() {
   );
 }
 
-function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
+function StatCard({
+  icon,
+  label,
+  value,
+  onClick,
+  active,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  onClick?: () => void;
+  active?: boolean;
+}) {
   return (
-    <div className="glass-strong rounded-2xl p-5 hover-lift animate-fade-up">
-      <div className="flex items-center justify-between">
-        <div className="size-10 rounded-xl bg-accent grid place-items-center">{icon}</div>
+    <button
+      onClick={onClick}
+      className={cn(
+        "text-left block w-full rounded-2xl transition-all cursor-pointer focus:outline-none",
+        active ? "ring-2 ring-primary ring-offset-2 scale-[1.01] shadow-md" : "hover:scale-[1.01]"
+      )}
+    >
+      <div className="glass-strong rounded-2xl p-5 hover-lift animate-fade-up h-full">
+        <div className="flex items-center justify-between">
+          <div className="size-10 rounded-xl bg-accent grid place-items-center">{icon}</div>
+        </div>
+        <div className="mt-3 font-display font-bold text-3xl">
+          <AnimatedCounter value={value} />
+        </div>
+        <div className="text-sm text-muted-foreground">{label}</div>
       </div>
-      <div className="mt-3 font-display font-bold text-3xl"><AnimatedCounter value={value} /></div>
-      <div className="text-sm text-muted-foreground">{label}</div>
-    </div>
+    </button>
   );
 }
 

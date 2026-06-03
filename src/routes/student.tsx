@@ -2,12 +2,13 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState, useEffect } from "react";
 import { AppShell } from "@/components/AppShell";
 import { useAuthUser, useStore, store, usePasswordChangeRequired } from "@/lib/store";
-import { ClearanceRequest, REQUEST_TYPES, REQUEST_TYPE_LABEL, REQUEST_TYPE_DEPARTMENTS, RequestType } from "@/lib/types";
+import { ClearanceRequest, REQUEST_TYPES, REQUEST_TYPE_LABEL, REQUEST_TYPE_DEPARTMENTS, RequestType, Department } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
 import { QrCode } from "@/components/QrCode";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { LayoutDashboard, FileText, BadgeCheck, QrCode as QrIcon, Send, CheckCircle2, Clock, XCircle, Download, AlertTriangle, Sparkles, BookOpen, Wallet, Laptop, Home, Trophy, Activity } from "lucide-react";
 import { toast } from "sonner";
@@ -70,6 +71,8 @@ function StudentPage() {
   const active = myRequests[0];
   const latestApproved = useMemo(() => active && active.overallStatus === "approved" ? active : undefined, [active]);
   const [tab, setTab] = useState("overview");
+  const [selectedDept, setSelectedDept] = useState<Department | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<AuditEvent | null>(null);
 
   if (!hydrated) {
     return (
@@ -120,6 +123,29 @@ function StudentPage() {
     >
       <div className="space-y-8">
         <Hero user={user?.name ?? "Student"} active={active} />
+
+        {active?.overallStatus === "approved" && (
+          <button
+            onClick={() => setTab("certificate")}
+            className="w-full text-left bg-success/15 border border-success/30 hover:border-success/50 transition-all rounded-2xl p-4 flex items-center justify-between gap-3 text-success animate-fade-in cursor-pointer group shadow-sm"
+          >
+            <div className="flex items-center gap-3">
+              <div className="size-10 rounded-xl bg-success/20 grid place-items-center shrink-0">
+                <BadgeCheck className="size-6 text-success animate-pulse" />
+              </div>
+              <div>
+                <h4 className="font-display font-bold text-sm sm:text-base">Clearance Completed Successfully!</h4>
+                <p className="text-xs text-muted-foreground font-semibold mt-0.5 group-hover:text-success/80 transition-colors">
+                  Congratulations! Your digital clearance certificate is ready. Click here to view or print it.
+                </p>
+              </div>
+            </div>
+            <span className="text-xs font-bold bg-success/20 px-3 py-1 rounded-full shrink-0 group-hover:scale-105 transition-transform">
+              View Certificate
+            </span>
+          </button>
+        )}
+
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="glass rounded-xl p-1 flex-wrap h-auto">
             <TabsTrigger value="overview" className="rounded-lg">Overview</TabsTrigger>
@@ -130,13 +156,22 @@ function StudentPage() {
             )}
           </TabsList>
           <TabsContent value="overview" className="mt-6">
-            {active ? <Overview req={active} /> : <Empty />}
+            {active ? (
+              <Overview
+                req={active}
+                onTabChange={setTab}
+                onSelectDept={setSelectedDept}
+                onSelectEvent={setSelectedEvent}
+              />
+            ) : (
+              <Empty />
+            )}
           </TabsContent>
           <TabsContent value="submit" className="mt-6">
             <NewRequestForm onSubmitted={() => setTab("overview")} />
           </TabsContent>
           <TabsContent value="history" className="mt-6">
-            <History list={myRequests} />
+            <History list={myRequests} onSelectEvent={setSelectedEvent} />
           </TabsContent>
           {latestApproved && (
             <TabsContent value="certificate" className="mt-6">
@@ -145,6 +180,18 @@ function StudentPage() {
           )}
         </Tabs>
       </div>
+
+      <EligibilityDetailDialog
+        open={!!selectedDept}
+        onClose={() => setSelectedDept(null)}
+        department={selectedDept}
+        studentId={user?.id || ""}
+      />
+      <TimelineEventDialog
+        open={!!selectedEvent}
+        onClose={() => setSelectedEvent(null)}
+        event={selectedEvent}
+      />
     </AppShell>
   );
 }
@@ -200,7 +247,17 @@ function InboxIcon({ className }: { className?: string }) {
   );
 }
 
-function Overview({ req }: { req: ClearanceRequest }) {
+function Overview({
+  req,
+  onTabChange,
+  onSelectDept,
+  onSelectEvent
+}: {
+  req: ClearanceRequest;
+  onTabChange: (t: string) => void;
+  onSelectDept: (d: Department) => void;
+  onSelectEvent: (evt: any) => void;
+}) {
   const user = useAuthUser();
   const loans = useStore((s) => s.loans);
   const fees = useStore((s) => s.fees);
@@ -252,7 +309,10 @@ function Overview({ req }: { req: ClearanceRequest }) {
       </div>
 
       {/* Live Clearance Progress Tracker */}
-      <div className="glass-strong rounded-2xl p-6 border border-border/40 space-y-5">
+      <div
+        onClick={() => onTabChange("history")}
+        className="glass-strong rounded-2xl p-6 border border-border/40 space-y-5 cursor-pointer hover:border-primary/45 hover:scale-[1.005] transition-all shadow-sm group text-left block w-full"
+      >
         <div>
           <h3 className="font-display font-semibold text-base sm:text-lg flex items-center gap-2">
             <Sparkles className="size-5 text-primary animate-pulse" /> Live Clearance Progress
@@ -283,15 +343,17 @@ function Overview({ req }: { req: ClearanceRequest }) {
         </div>
 
         {/* Compact Grid of department ticks */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 pt-1">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 pt-1" onClick={(e) => e.stopPropagation()}>
           {req.departments.map((d) => {
             const isApproved = d.status === "approved";
             const isRejected = d.status === "rejected";
             return (
-              <div
+              <button
+                type="button"
                 key={d.department}
+                onClick={() => onSelectDept(d.department)}
                 className={cn(
-                  "flex items-center gap-2 p-3 rounded-xl border transition-all text-xs font-semibold shadow-xs select-none",
+                  "flex items-center gap-2 p-3 rounded-xl border transition-all text-xs font-semibold shadow-xs select-none text-left cursor-pointer hover:border-primary/50",
                   isApproved && "bg-success/5 border-success/30 text-success font-bold",
                   isRejected && "bg-destructive/5 border-destructive/30 text-destructive font-bold",
                   !isApproved && !isRejected && "bg-muted/40 border-border/40 text-muted-foreground"
@@ -308,7 +370,7 @@ function Overview({ req }: { req: ClearanceRequest }) {
                   {isRejected && "✗"}
                   {!isApproved && !isRejected && "⏳"}
                 </span>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -328,7 +390,16 @@ function Overview({ req }: { req: ClearanceRequest }) {
 
         <div className="relative pl-6 border-l border-border/60 ml-4 space-y-6 my-2">
           {/* Step 1: Submission */}
-          <div className="relative animate-fade-in">
+          <div
+            onClick={() => onSelectEvent({
+              time: new Date(req.submittedAt),
+              title: "Clearance Request Initialized",
+              body: `Routed clearance type: "${REQUEST_TYPE_LABEL[req.requestType]}". Reason: "${req.reason}"`,
+              actor: req.studentName,
+              status: "info"
+            })}
+            className="relative animate-fade-in cursor-pointer hover:opacity-85 transition-opacity"
+          >
             <div className="absolute -left-9 top-0 size-6 rounded-full bg-primary grid place-items-center text-primary-foreground shadow-elegant">
               <Send className="size-3 text-primary-foreground" />
             </div>
@@ -359,8 +430,24 @@ function Overview({ req }: { req: ClearanceRequest }) {
               bgClass = "bg-destructive shadow-elegant text-primary-foreground";
             }
 
+            const evt = {
+              time: d.reviewedAt ? new Date(d.reviewedAt) : new Date(req.submittedAt),
+              title: `${d.department} Department Review`,
+              body: isApproved
+                ? `Department clearance CLEARED. Remarks: "${d.remarks || 'Clearance successfully cleared'}"`
+                : isRejected
+                ? `Department clearance REJECTED. Remarks: "${d.remarks || 'Outstanding obligations require attention'}"`
+                : `Awaiting record verification by ${d.department} officers`,
+              actor: d.reviewedBy || `${d.department} Reviewing Officer`,
+              status: isApproved ? "approved" : isRejected ? "rejected" : "pending"
+            };
+
             return (
-              <div key={d.department} className="relative animate-fade-in">
+              <div
+                key={d.department}
+                onClick={() => onSelectEvent(evt)}
+                className="relative animate-fade-in cursor-pointer hover:opacity-85 transition-opacity"
+              >
                 <div className={cn("absolute -left-9 top-0 size-6 rounded-full grid place-items-center", bgClass)}>
                   {iconNode}
                 </div>
@@ -386,7 +473,20 @@ function Overview({ req }: { req: ClearanceRequest }) {
           })}
 
           {/* Step Last: Certificate generation */}
-          <div className="relative animate-fade-in">
+          <div
+            onClick={() => {
+              if (req.overallStatus === "approved") {
+                onSelectEvent({
+                  time: new Date(completedAt || req.submittedAt),
+                  title: "E-Clearance Certificate Issued",
+                  body: "All department approvals successfully registered. Verified digital e-clearance certificate is fully online and printable.",
+                  actor: "Office of the Registrar",
+                  status: "approved"
+                });
+              }
+            }}
+            className={cn("relative animate-fade-in", req.overallStatus === "approved" && "cursor-pointer hover:opacity-85 transition-opacity")}
+          >
             {req.overallStatus === "approved" ? (
               <div className="absolute -left-9 top-0 size-6 rounded-full bg-primary grid place-items-center text-primary-foreground shadow-elegant">
                 <BadgeCheck className="size-3 text-primary-foreground" />
@@ -515,7 +615,13 @@ function Overview({ req }: { req: ClearanceRequest }) {
           {req.departments.map((d, i) => {
             const e = evals[i];
             return (
-              <div key={d.department} className="rounded-xl border bg-card/50 p-4 hover-lift" style={{ animationDelay: `${i * 50}ms` }}>
+              <button
+                type="button"
+                key={d.department}
+                onClick={() => onSelectDept(d.department)}
+                className="w-full text-left rounded-xl border bg-card/50 p-4 hover-lift hover:border-primary/50 transition-all block cursor-pointer"
+                style={{ animationDelay: `${i * 50}ms` }}
+              >
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div>
                     <div className="flex items-center gap-2">
@@ -552,7 +658,7 @@ function Overview({ req }: { req: ClearanceRequest }) {
                     <span className="font-bold text-muted-foreground">Officer remarks: </span>{d.remarks}
                   </div>
                 )}
-              </div>
+              </button>
             );
           })}
         </div>
@@ -779,7 +885,7 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-function History({ list }: { list: ClearanceRequest[] }) {
+function History({ list, onSelectEvent }: { list: ClearanceRequest[]; onSelectEvent: (evt: AuditEvent) => void }) {
   if (!list.length) return <Empty />;
   const active = list[0]; // Chronological activity log for the latest request
 
@@ -860,7 +966,11 @@ function History({ list }: { list: ClearanceRequest[] }) {
             if (evt.status === "rejected") bgClass = "bg-destructive text-destructive-foreground";
             if (evt.status === "info") bgClass = "bg-primary text-primary-foreground";
             return (
-              <div key={idx} className="relative animate-fade-in">
+              <div
+                key={idx}
+                onClick={() => onSelectEvent(evt)}
+                className="relative animate-fade-in cursor-pointer hover:opacity-85 transition-opacity"
+              >
                 <div className={cn("absolute -left-9 top-0.5 size-6 rounded-full grid place-items-center shadow-md", bgClass)}>
                   {evt.icon}
                 </div>
@@ -995,5 +1105,148 @@ function Info({ label, value }: { label: string; value: string }) {
       <div className="text-xs uppercase tracking-wider text-muted-foreground font-bold">{label}</div>
       <div className="font-bold mt-1 text-base">{value}</div>
     </div>
+  );
+}
+
+function EligibilityDetailDialog({ open, onClose, department, studentId }: { open: boolean; onClose: () => void; department: Department | null; studentId: string }) {
+  if (!department) return null;
+
+  const loans = useStore((s) => s.loans);
+  const fees = useStore((s) => s.fees);
+  const assets = useStore((s) => s.assets);
+  const hostel = useStore((s) => s.hostel);
+  const sports = useStore((s) => s.sports);
+  const data = { loans, fees, assets, hostel, sports };
+
+  const evalResult = useMemo(
+    () => evaluateDepartment(department, studentId, data),
+    [department, studentId, data]
+  );
+
+  const stepsToClear = {
+    Finance: "Please visit the Bursar's office with your bank tellers/receipts to resolve outstanding fees, or make a payment online through the university payment portal.",
+    Library: "Please return all outstanding borrowed books to the Main Library. Accrued overdue fines must be paid at the library desk before clearance.",
+    ICT: "All assigned university ICT assets (laptops, accessories, network keys) must be returned to the ICT Center helpdesk in working condition.",
+    Hostel: "Ensure your hostel checkout form is signed by the porter and submit it. Outstanding room damage assessments must be paid.",
+    Registrar: "The Registrar's Office reviews academic credits, transcript records, and graduation requirements. Verify with your department coordinator.",
+    Sports: "Return any borrowed sports kit, jerseys, or equipment to the Sports Complex equipment store."
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-xl">{department} Department Clearance</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className={cn(
+            "p-4 rounded-xl border flex items-start gap-3",
+            evalResult.eligible ? "bg-success/5 border-success/30 text-success" : "bg-destructive/5 border-destructive/30 text-destructive"
+          )}>
+            {evalResult.eligible ? (
+              <CheckCircle2 className="size-6 text-success shrink-0" />
+            ) : (
+              <AlertTriangle className="size-6 text-destructive shrink-0" />
+            )}
+            <div>
+              <div className="font-bold text-sm">
+                Status: {evalResult.eligible ? "Eligible for Approval" : "Clearance Blocked"}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1 font-medium">{evalResult.summary}</p>
+            </div>
+          </div>
+
+          {evalResult.obligations.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Records on File</div>
+              <ul className="space-y-1.5 max-h-[150px] overflow-y-auto pr-1">
+                {evalResult.obligations.map((o, idx) => (
+                  <li
+                    key={idx}
+                    className={cn(
+                      "flex items-center justify-between text-xs p-2.5 rounded-lg border font-semibold",
+                      o.blocking ? "bg-destructive/5 border-destructive/20 text-destructive" : "bg-success/5 border-success/20 text-success"
+                    )}
+                  >
+                    <div className="min-w-0">
+                      <div className="font-bold truncate">{o.label}</div>
+                      {o.detail && <div className="text-[10px] text-muted-foreground font-medium truncate mt-0.5">{o.detail}</div>}
+                    </div>
+                    {o.cost > 0 && <span className="font-mono ml-2 shrink-0">{NGN(o.cost)}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="space-y-2 pt-2 border-t">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">How to Clear</div>
+            <p className="text-xs leading-relaxed font-semibold text-foreground/80">
+              {stepsToClear[department as keyof typeof stepsToClear] || "Please visit the department's main administrative desk to verify your records."}
+            </p>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button onClick={onClose} className="w-full gradient-bg text-primary-foreground shadow-elegant">
+              Close Details
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TimelineEventDialog({ open, onClose, event }: { open: boolean; onClose: () => void; event: AuditEvent | null }) {
+  if (!event) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-xl">Timeline Event Details</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="p-4 rounded-xl bg-muted/40 border space-y-3">
+            <div>
+              <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Event / Action</div>
+              <div className="text-sm font-bold text-foreground mt-0.5">{event.title}</div>
+            </div>
+
+            <div>
+              <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Performed By (Actor)</div>
+              <div className="text-sm font-bold text-foreground mt-0.5">{event.actor}</div>
+            </div>
+
+            <div>
+              <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Timestamp</div>
+              <div className="text-sm font-semibold text-muted-foreground font-mono mt-0.5">
+                {event.time.toLocaleString(undefined, { dateStyle: "long", timeStyle: "medium" })}
+              </div>
+            </div>
+
+            <div className="flex flex-col">
+              <span className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-1">Status Type</span>
+              <StatusBadge status={event.status === "info" ? "pending" : event.status} />
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-1.5">Action Remarks / Details</div>
+            <p className="text-xs leading-normal p-3 rounded-lg border bg-card italic font-medium">
+              &ldquo;{event.body}&rdquo;
+            </p>
+          </div>
+
+          <div className="flex justify-end">
+            <Button onClick={onClose} className="w-full gradient-bg text-primary-foreground shadow-elegant">
+              Close Event
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
