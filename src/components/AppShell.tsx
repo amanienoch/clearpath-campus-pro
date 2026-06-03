@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo, type ReactNode } from "react";
 import { authStore, useAuthHydrated, useAuthUser, useStore, usePasswordChangeRequired } from "@/lib/store";
 import { Role } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, LogOut, Menu, Moon, ShieldCheck, Sun, X, PanelLeftClose, PanelLeftOpen, Bell, Search, Settings } from "lucide-react";
+import { GraduationCap, LogOut, Menu, Moon, ShieldCheck, Sun, X, PanelLeftClose, PanelLeftOpen, Bell, Search, Settings, Inbox } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -369,16 +369,16 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
                 onClick={() => setOpen(false)}
                 title={isCollapsed ? item.label : undefined}
                 className={cn(
-                  "flex items-center rounded-xl text-sm font-medium transition-all relative overflow-hidden group/item h-11",
+                  "flex items-center rounded-xl text-sm font-medium transition-all duration-200 relative overflow-hidden group/item h-11",
                   isCollapsed ? "justify-center p-3" : "gap-3 px-4 py-3",
                   active
-                    ? "bg-primary/10 text-primary font-semibold shadow-sm"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-foreground",
+                    ? "bg-gradient-to-r from-primary/15 to-primary/5 text-primary font-semibold shadow-xs"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
                 )}
               >
                 {/* Stripe/Linear style left indicator */}
                 {active && (
-                  <div className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r bg-primary animate-fade-in" />
+                  <div className="absolute left-0 top-2.5 bottom-2.5 w-[3.5px] rounded-r bg-primary animate-fade-in shadow-[0_0_8px_var(--color-ring)]" />
                 )}
                 <div className={cn("size-5 shrink-0 flex items-center justify-center transition-transform group-hover/item:scale-105", active ? "text-primary animate-pulse" : "text-muted-foreground group-hover/item:text-foreground")}>
                   {item.icon}
@@ -519,8 +519,10 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
                         </div>
                         <div className="flex-1 overflow-y-auto divide-y divide-border/30 max-h-[360px] custom-scrollbar">
                           {activity.length === 0 ? (
-                            <div className="p-8 text-center text-muted-foreground text-sm font-medium">
-                              No recent notifications
+                            <div className="p-10 text-center text-muted-foreground select-none">
+                              <Bell className="size-8 mx-auto text-muted-foreground/30 mb-2.5 animate-bounce" />
+                              <div className="text-xs font-semibold text-foreground/80">All caught up</div>
+                              <div className="text-[10px] mt-0.5">No recent notifications at this time.</div>
                             </div>
                           ) : (
                             activity.slice(0, 15).map((act) => {
@@ -606,8 +608,10 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
                 {/* Flat/Grouped Results container */}
                 <div className="flex-1 overflow-y-auto p-2 space-y-3 max-h-[320px] custom-scrollbar">
                   {filteredItems.length === 0 ? (
-                    <div className="py-12 text-center text-muted-foreground text-sm font-medium">
-                      No results found for &ldquo;{searchQuery}&rdquo;
+                    <div className="py-12 text-center text-muted-foreground select-none">
+                      <Inbox className="size-8 mx-auto text-muted-foreground/30 mb-2.5" />
+                      <div className="text-xs font-semibold text-foreground/80">No results found</div>
+                      <div className="text-[10px] mt-0.5">No records match the current filters.</div>
                     </div>
                   ) : (
                     (() => {

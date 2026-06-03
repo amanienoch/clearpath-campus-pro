@@ -263,11 +263,11 @@ function AdminPage() {
               <h3 className="font-display font-semibold text-base sm:text-lg mb-4">Department performance</h3>
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={deptData}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 12 }} />
-                  <Legend />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.3} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontWeight: 500 }} />
+                  <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontWeight: 500 }} />
+                  <Tooltip contentStyle={{ background: "var(--glass-bg)", backdropFilter: "blur(8px)", border: "1px solid var(--border)", borderRadius: 12, boxShadow: "var(--shadow-glass)" }} itemStyle={{ fontSize: 11, fontWeight: 600 }} labelStyle={{ fontSize: 11, fontWeight: 700 }} />
+                  <Legend verticalAlign="top" height={36} iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, fontWeight: 600, paddingBottom: 10 }} />
                   <Bar dataKey="approved" fill="oklch(0.65 0.18 155)" stackId="a" radius={[0, 0, 0, 0]}>
                     {deptData.map((entry, index) => (
                       <Cell key={`cell-app-${index}`} className="cursor-pointer hover:opacity-85" onClick={() => { setOverviewDepartmentFilter(entry.name); setOverviewStatusFilter("approved"); }} />
@@ -303,8 +303,8 @@ function AdminPage() {
                       />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 12 }} />
-                  <Legend />
+                  <Tooltip contentStyle={{ background: "var(--glass-bg)", backdropFilter: "blur(8px)", border: "1px solid var(--border)", borderRadius: 12, boxShadow: "var(--shadow-glass)" }} itemStyle={{ fontSize: 11, fontWeight: 600 }} labelStyle={{ fontSize: 11, fontWeight: 700 }} />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, fontWeight: 600, paddingTop: 10 }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -363,7 +363,7 @@ function AdminPage() {
                     <tr
                       key={r.id}
                       onClick={() => setSelectedRequest(r)}
-                      className="border-t hover:bg-muted/40 transition-colors cursor-pointer animate-fade-up font-medium"
+                      className="border-t row-hover-premium cursor-pointer animate-fade-up font-medium"
                       style={{ animationDelay: `${i * 40}ms` }}
                     >
                       <td className="px-4 py-3">
@@ -473,10 +473,10 @@ function AdminPage() {
               <h3 className="font-display font-semibold text-base sm:text-lg mb-4">Requests by Month</h3>
               <ResponsiveContainer width="100%" height={260}>
                 <LineChart data={trend}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 12 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.3} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontWeight: 500 }} />
+                  <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontWeight: 500 }} />
+                  <Tooltip contentStyle={{ background: "var(--glass-bg)", backdropFilter: "blur(8px)", border: "1px solid var(--border)", borderRadius: 12, boxShadow: "var(--shadow-glass)" }} itemStyle={{ fontSize: 11, fontWeight: 600 }} labelStyle={{ fontSize: 11, fontWeight: 700 }} />
                   <Line type="monotone" dataKey="requests" stroke="oklch(0.52 0.22 265)" strokeWidth={3} dot={{ r: 4 }} />
                 </LineChart>
               </ResponsiveContainer>
@@ -501,8 +501,8 @@ function AdminPage() {
                       />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 12 }} />
-                  <Legend verticalAlign="bottom" height={36} tick={{ fontSize: 11 }} />
+                  <Tooltip contentStyle={{ background: "var(--glass-bg)", backdropFilter: "blur(8px)", border: "1px solid var(--border)", borderRadius: 12, boxShadow: "var(--shadow-glass)" }} itemStyle={{ fontSize: 11, fontWeight: 600 }} labelStyle={{ fontSize: 11, fontWeight: 700 }} />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, fontWeight: 600, paddingTop: 10 }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -512,10 +512,10 @@ function AdminPage() {
               <h3 className="font-display font-semibold text-base sm:text-lg mb-4">Department Approval Rates (%)</h3>
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={deptRates}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} domain={[0, 100]} />
-                  <Tooltip contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 12 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.3} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontWeight: 500 }} />
+                  <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontWeight: 500 }} domain={[0, 100]} />
+                  <Tooltip contentStyle={{ background: "var(--glass-bg)", backdropFilter: "blur(8px)", border: "1px solid var(--border)", borderRadius: 12, boxShadow: "var(--shadow-glass)" }} itemStyle={{ fontSize: 11, fontWeight: 600 }} labelStyle={{ fontSize: 11, fontWeight: 700 }} />
                   <Bar dataKey="rate" fill="oklch(0.65 0.18 155)" radius={[8, 8, 0, 0]}>
                     {deptRates.map((entry, index) => (
                       <Cell
@@ -537,10 +537,10 @@ function AdminPage() {
               <h3 className="font-display font-semibold text-base sm:text-lg mb-4">Outstanding Obligations by Department</h3>
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={obligationsByDept}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 12 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.3} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontWeight: 500 }} />
+                  <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontWeight: 500 }} />
+                  <Tooltip contentStyle={{ background: "var(--glass-bg)", backdropFilter: "blur(8px)", border: "1px solid var(--border)", borderRadius: 12, boxShadow: "var(--shadow-glass)" }} itemStyle={{ fontSize: 11, fontWeight: 600 }} labelStyle={{ fontSize: 11, fontWeight: 700 }} />
                   <Bar dataKey="obligations" radius={[8, 8, 0, 0]}>
                     {obligationsByDept.map((entry, index) => (
                       <Cell
@@ -570,10 +570,10 @@ function AdminPage() {
               <h3 className="font-display font-semibold text-base sm:text-lg mb-4">Certificate Issuance Trends (Last 6 Months)</h3>
               <ResponsiveContainer width="100%" height={260}>
                 <LineChart data={certTrend}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 12 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.3} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontWeight: 500 }} />
+                  <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontWeight: 500 }} />
+                  <Tooltip contentStyle={{ background: "var(--glass-bg)", backdropFilter: "blur(8px)", border: "1px solid var(--border)", borderRadius: 12, boxShadow: "var(--shadow-glass)" }} itemStyle={{ fontSize: 11, fontWeight: 600 }} labelStyle={{ fontSize: 11, fontWeight: 700 }} />
                   <Line type="monotone" dataKey="certificates" stroke="oklch(0.65 0.18 155)" strokeWidth={3} dot={{ r: 4 }} />
                 </LineChart>
               </ResponsiveContainer>
@@ -633,17 +633,24 @@ function AdminPage() {
 }
 
 function BigStat({ icon, label, value, trend, tone }: { icon: React.ReactNode; label: string; value: number | string; trend?: string; tone?: "success" | "warning" | "destructive" }) {
-  const toneCls = tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : tone === "destructive" ? "text-destructive" : "text-primary";
+  const toneBgCls = tone === "success" 
+    ? "bg-success/15 text-success border border-success/20" 
+    : tone === "warning" 
+      ? "bg-warning/15 text-warning border border-warning/20" 
+      : tone === "destructive" 
+        ? "bg-destructive/15 text-destructive border border-destructive/20" 
+        : "bg-primary/15 text-primary border border-primary/20";
+
   return (
-    <div className="glass-strong rounded-2xl p-5 hover-lift animate-fade-up">
+    <div className="glass-strong rounded-2xl p-5 hover-lift animate-fade-up border border-border/40 shadow-xs hover:border-border/80 transition-all duration-200">
       <div className="flex items-center justify-between">
-        <div className={`size-11 rounded-xl bg-accent grid place-items-center ${toneCls} transition-transform group-hover:scale-110`}>{icon}</div>
+        <div className={`size-11 rounded-xl grid place-items-center ${toneBgCls} transition-transform group-hover:scale-110`}>{icon}</div>
         {trend && <span className="text-xs font-semibold text-success">{trend}</span>}
       </div>
-      <div className="font-display font-bold text-xl sm:text-2xl mt-3 truncate">
+      <div className="font-display font-bold text-2xl sm:text-3xl mt-4 tracking-tight text-foreground/95 truncate">
         {typeof value === "number" ? <AnimatedCounter value={value} /> : value}
       </div>
-      <div className="text-xs text-muted-foreground mt-1 font-medium">{label}</div>
+      <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mt-2">{label}</div>
     </div>
   );
 }
@@ -1865,8 +1872,10 @@ function StudentDetailDialog({ open, onClose, student }: { open: boolean; onClos
               <FileText className="size-4 text-primary" /> Clearance History ({studentRequests.length})
             </h4>
             {studentRequests.length === 0 ? (
-              <div className="p-4 border rounded-xl text-center text-muted-foreground text-xs font-semibold bg-muted/20 select-none">
-                No clearance requests submitted yet.
+              <div className="p-6 border rounded-xl text-center text-muted-foreground text-xs font-semibold bg-muted/10 select-none">
+                <FileText className="size-6 mx-auto text-muted-foreground/30 mb-2.5" />
+                <div>No clearance history found</div>
+                <div className="text-[10px] text-muted-foreground/80 mt-0.5">This student has not submitted any clearance requests.</div>
               </div>
             ) : (
               <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">

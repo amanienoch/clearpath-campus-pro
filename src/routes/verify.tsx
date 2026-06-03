@@ -135,12 +135,12 @@ function VerifyPage() {
 function VerificationCard({ result }: { result: VerificationResult }) {
   if (result.overallStatus === "approved" && result.isMostRecent) {
     return (
-      <div className="glass-strong rounded-3xl p-8 border-2 border-success/30 animate-fade-up">
+      <div className="glass-strong rounded-3xl p-8 border-4 border-double border-success/30 animate-fade-up shadow-sm">
         <div className="flex items-center gap-3 text-success">
-          <BadgeCheck className="size-10" />
+          <BadgeCheck className="size-10 animate-pulse shrink-0" />
           <div>
-            <div className="font-display font-bold text-2xl">Certificate Verified</div>
-            <div className="text-sm text-muted-foreground">This clearance is authentic and active.</div>
+            <div className="font-display font-bold text-2xl tracking-tight">Certificate Verified</div>
+            <div className="text-xs text-muted-foreground font-medium">This clearance is authentic and active.</div>
           </div>
         </div>
         <div className="grid sm:grid-cols-2 gap-4 mt-6">
@@ -153,7 +153,7 @@ function VerificationCard({ result }: { result: VerificationResult }) {
         </div>
         <div className="mt-6 flex flex-wrap gap-2">
           {(result.departments ?? []).map((department) => (
-            <span key={department} className="text-xs font-medium px-2.5 py-1 rounded-full bg-success/15 text-success border border-success/30">
+            <span key={department} className="text-xs font-semibold px-2.5 py-1 rounded-full bg-success/10 text-success border border-success/20 shadow-xs">
               ✓ {department}
             </span>
           ))}
@@ -164,14 +164,14 @@ function VerificationCard({ result }: { result: VerificationResult }) {
 
   if (result.overallStatus === "approved" && !result.isMostRecent) {
     return (
-      <div className="glass-strong rounded-3xl p-8 border-2 border-warning/40">
+      <div className="glass-strong rounded-3xl p-8 border-4 border-double border-warning/30 animate-fade-up shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="size-12 rounded-full bg-warning/15 text-warning grid place-items-center">
+          <div className="size-12 rounded-full bg-warning/10 text-warning border border-warning/20 grid place-items-center shrink-0">
             <XCircle className="size-6 text-destructive" />
           </div>
           <div>
-            <div className="font-display font-bold text-2xl text-destructive">Superseded Certificate</div>
-            <div className="text-sm text-muted-foreground">This certificate has been superseded by a newer clearance request and is no longer active.</div>
+            <div className="font-display font-bold text-2xl text-destructive tracking-tight">Superseded Certificate</div>
+            <div className="text-xs text-muted-foreground font-medium">This certificate has been superseded by a newer clearance request and is no longer active.</div>
           </div>
         </div>
         <div className="grid sm:grid-cols-2 gap-4 mt-6">
@@ -185,19 +185,19 @@ function VerificationCard({ result }: { result: VerificationResult }) {
   }
 
   return (
-    <div className="glass-strong rounded-3xl p-8 border-2 border-warning/40">
+    <div className="glass-strong rounded-3xl p-8 border-4 border-double border-warning/30 animate-fade-up shadow-sm">
       <div className="flex items-center gap-3">
-        <div className="size-12 rounded-full bg-warning/15 text-warning grid place-items-center">
+        <div className="size-12 rounded-full bg-warning/10 text-warning border border-warning/20 grid place-items-center shrink-0">
           <ShieldCheck className="size-6" />
         </div>
         <div>
-          <div className="font-display font-bold text-2xl">Found, but not yet cleared</div>
-          <div className="text-sm text-muted-foreground">This clearance request exists but is still in progress.</div>
+          <div className="font-display font-bold text-2xl tracking-tight">Found, but not yet cleared</div>
+          <div className="text-xs text-muted-foreground font-medium">This clearance request exists but is still in progress.</div>
         </div>
       </div>
-      <div className="mt-4 flex items-center gap-3">
+      <div className="mt-6 p-4 rounded-xl border bg-card flex items-center justify-between flex-wrap gap-2">
+        <div className="text-sm font-semibold text-foreground/90">{result.studentName} &middot; <span className="font-mono">{result.clearanceId}</span></div>
         <StatusBadge status={result.overallStatus ?? "pending"} />
-        <span className="text-sm text-muted-foreground">{result.studentName} · {result.clearanceId}</span>
       </div>
     </div>
   );
@@ -205,12 +205,12 @@ function VerificationCard({ result }: { result: VerificationResult }) {
 
 function Unavailable({ error }: { error: string }) {
   return (
-    <div className="glass-strong rounded-3xl p-8 border-2 border-destructive/30">
+    <div className="glass-strong rounded-3xl p-8 border-4 border-double border-destructive/30 animate-fade-up shadow-sm">
       <div className="flex items-center gap-3 text-destructive">
-        <XCircle className="size-10" />
+        <XCircle className="size-10 shrink-0" />
         <div>
-          <div className="font-display font-bold text-2xl">Verification Unavailable</div>
-          <div className="text-sm text-muted-foreground">{error}</div>
+          <div className="font-display font-bold text-2xl tracking-tight">Verification Unavailable</div>
+          <div className="text-xs text-muted-foreground font-medium">{error}</div>
         </div>
       </div>
     </div>
@@ -219,13 +219,13 @@ function Unavailable({ error }: { error: string }) {
 
 function NotVerified({ id }: { id: string }) {
   return (
-    <div className="glass-strong rounded-3xl p-8 border-2 border-destructive/30">
+    <div className="glass-strong rounded-3xl p-8 border-4 border-double border-destructive/30 animate-fade-up shadow-sm">
       <div className="flex items-center gap-3 text-destructive">
-        <XCircle className="size-10" />
+        <XCircle className="size-10 shrink-0 animate-bounce" />
         <div>
-          <div className="font-display font-bold text-2xl">Not Verified</div>
-          <div className="text-sm text-muted-foreground">
-            No clearance found with the ID <span className="font-mono">{id}</span>.
+          <div className="font-display font-bold text-2xl tracking-tight">Not Verified</div>
+          <div className="text-xs text-muted-foreground font-medium">
+            No clearance records found matching ID: <span className="font-mono font-bold text-foreground bg-muted/30 px-1.5 py-0.5 rounded">{id}</span>.
           </div>
         </div>
       </div>
@@ -235,9 +235,9 @@ function NotVerified({ id }: { id: string }) {
 
 function Info({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div>
-      <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className={`font-semibold mt-0.5 ${mono ? "font-mono" : ""}`}>{value}</div>
+    <div className="bg-background/40 p-3 rounded-xl border border-border/30">
+      <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">{label}</div>
+      <div className={`font-bold mt-1 text-sm sm:text-base text-foreground ${mono ? "font-mono" : ""}`}>{value}</div>
     </div>
   );
 }

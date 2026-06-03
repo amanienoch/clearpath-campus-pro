@@ -1009,7 +1009,7 @@ function History({ list, onSelectEvent }: { list: ClearanceRequest[]; onSelectEv
               {list.map((r) => {
                 const approved = r.departments.filter((d) => d.status === "approved").length;
                 return (
-                  <tr key={r.id} className="border-t hover:bg-muted/30 font-medium">
+                  <tr key={r.id} className="border-t row-hover-premium font-medium">
                     <td className="px-4 py-3 font-mono font-bold whitespace-nowrap">{r.clearanceId}</td>
                     <td className="px-4 py-3 whitespace-nowrap">{REQUEST_TYPE_LABEL[r.requestType]}</td>
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{new Date(r.submittedAt).toLocaleDateString()}</td>
@@ -1037,37 +1037,44 @@ function Certificate({ req }: { req: ClearanceRequest }) {
       className="space-y-4 animate-fade-in"
     >
       <div className="flex flex-wrap gap-2 print:hidden">
-        <Button onClick={printIt} className="gradient-bg text-primary-foreground shadow-elegant"><Download className="size-4 mr-2" /> Download / Print</Button>
-        <Button variant="outline" asChild className="rounded-xl"><Link to="/verify" search={{ id: req.clearanceId }}>Verify online</Link></Button>
+        <Button onClick={printIt} className="gradient-bg text-primary-foreground shadow-elegant rounded-xl"><Download className="size-4 mr-2" /> Download / Print Certificate</Button>
+        <Button variant="outline" asChild className="rounded-xl"><Link to="/verify" search={{ id: req.clearanceId }}>Verify Online</Link></Button>
       </div>
-      <div className="bg-white text-[oklch(0.18_0.04_265)] rounded-3xl p-10 sm:p-14 shadow-elegant border-4 border-primary/20 relative overflow-hidden print:shadow-none printable-certificate">
-        <div className="absolute inset-0 pointer-events-none opacity-[0.04]" style={{ backgroundImage: "radial-gradient(circle at 30% 30%, currentColor 1px, transparent 1px)", backgroundSize: "20px 20px" }} />
-        <div className="relative">
+      <div className="bg-white text-[oklch(0.18_0.04_265)] rounded-3xl p-10 sm:p-14 shadow-elegant border-8 border-double border-primary/20 relative overflow-hidden print:shadow-none printable-certificate">
+        {/* Subtle Watermark Security Grid */}
+        <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: "radial-gradient(circle at 30% 30%, currentColor 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
+        
+        {/* Centered Huge Watermark Icon */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.02]">
+          <ShieldCheck className="size-[280px] text-primary" />
+        </div>
+
+        <div className="relative border border-primary/10 p-6 sm:p-8 rounded-2xl h-full">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-3">
               <div className="size-14 rounded-2xl gradient-bg grid place-items-center shadow-elegant">
                 <BadgeCheck className="size-7 text-white animate-pulse" />
               </div>
               <div>
-                <div className="font-display font-bold text-2xl tracking-tight">University E-Clearance</div>
-                <div className="text-xs text-muted-foreground font-semibold">{REQUEST_TYPE_LABEL[req.requestType]}</div>
+                <div className="font-display font-bold text-2xl tracking-tight text-foreground">University E-Clearance</div>
+                <div className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">{REQUEST_TYPE_LABEL[req.requestType]}</div>
               </div>
             </div>
             <div className="text-right">
-              <div className="text-xs text-muted-foreground font-semibold">Clearance ID</div>
-              <div className="font-mono font-bold text-lg">{req.clearanceId}</div>
+              <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Clearance ID</div>
+              <div className="font-mono font-bold text-base text-foreground bg-muted/30 px-2.5 py-1 rounded-lg mt-0.5">{req.clearanceId}</div>
             </div>
           </div>
 
-          <div className="text-center mt-10 space-y-3">
-            <div className="text-xs uppercase tracking-[0.3em] text-muted-foreground font-bold">Certificate of Clearance</div>
-            <h1 className="font-display text-3xl sm:text-5xl font-black gradient-text tracking-tight">{req.studentName}</h1>
-            <p className="max-w-xl mx-auto text-sm text-muted-foreground font-medium">
-              has successfully completed clearance from all required university departments and is hereby cleared.
+          <div className="text-center mt-12 space-y-4">
+            <div className="text-xs uppercase tracking-[0.40em] text-primary font-extrabold">Official Certificate of Clearance</div>
+            <h1 className="font-display text-4xl sm:text-5xl font-black text-foreground tracking-tight leading-none pt-2">{req.studentName}</h1>
+            <p className="max-w-xl mx-auto text-xs sm:text-sm text-muted-foreground font-medium pt-2 leading-relaxed">
+              has successfully fulfilled all academic, financial, administrative, and sports obligations across all required university departments and is hereby declared fully cleared.
             </p>
           </div>
 
-          <div className="grid sm:grid-cols-3 gap-6 mt-10 text-sm">
+          <div className="grid grid-cols-3 gap-4 mt-12 text-xs border-y border-border/40 py-5">
             <Info label="Matric Number" value={req.matricNo} />
             <Info label="Program" value={req.program} />
             <Info label="Faculty" value={req.faculty} />
@@ -1075,22 +1082,29 @@ function Certificate({ req }: { req: ClearanceRequest }) {
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-8">
             {req.departments.map((d) => (
-              <div key={d.department} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-success/10 text-success border border-success/20 text-sm font-semibold shadow-sm">
-                <CheckCircle2 className="size-4 animate-pulse" /> {d.department}
+              <div key={d.department} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-success/5 text-success border border-success/20 text-xs font-semibold shadow-xs">
+                <CheckCircle2 className="size-3.5 text-success/80 shrink-0" /> {d.department}
               </div>
             ))}
           </div>
 
-          <div className="mt-10 flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="mt-12 flex flex-col sm:flex-row items-end justify-between gap-6">
             <div className="text-xs text-muted-foreground font-medium">
-              Issued on {new Date().toLocaleDateString(undefined, { dateStyle: "long" })}
-              <div className="mt-4 pt-4 border-t-2 border-foreground/30 w-56 text-center font-display font-bold text-sm tracking-wide">
-                Office of the Registrar
+              <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Date of Issuance</span>
+              <div className="font-semibold text-sm text-foreground mt-0.5">{new Date(req.submittedAt).toLocaleDateString(undefined, { dateStyle: "long" })}</div>
+              <div className="mt-8 pt-4 border-t border-foreground/30 w-56 text-center">
+                <div className="font-serif italic text-primary/75 text-base font-bold select-none mb-0.5">Registrar</div>
+                <div className="font-display font-bold text-[10px] tracking-widest uppercase text-muted-foreground">Office of the Registrar</div>
               </div>
             </div>
-            <div className="flex flex-col items-center gap-1">
-              <QrCode value={verifyUrl} size={140} />
-              <div className="text-xs text-muted-foreground flex items-center gap-1 font-semibold"><QrIcon className="size-3" /> Scan to verify</div>
+            <div className="flex flex-col items-center gap-1.5 shrink-0 bg-white p-2 rounded-xl border shadow-xs relative">
+              <QrCode value={verifyUrl} size={110} />
+              <div className="text-[9px] text-muted-foreground flex items-center gap-1 font-semibold uppercase tracking-wider"><QrIcon className="size-2.5" /> Scan to verify</div>
+              
+              {/* University Seal overlay badge */}
+              <div className="absolute -top-6 -right-6 size-12 rounded-full border border-primary/20 bg-primary/5 flex items-center justify-center text-primary/70 rotate-12 shadow-xs font-display font-extrabold text-[6px] uppercase tracking-wider text-center p-1 select-none">
+                Seal
+              </div>
             </div>
           </div>
         </div>
@@ -1103,7 +1117,7 @@ function Info({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <div className="text-xs uppercase tracking-wider text-muted-foreground font-bold">{label}</div>
-      <div className="font-bold mt-1 text-base">{value}</div>
+      <div className="font-bold mt-1 text-sm sm:text-base text-foreground">{value}</div>
     </div>
   );
 }

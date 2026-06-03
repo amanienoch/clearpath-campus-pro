@@ -112,25 +112,25 @@ function LoginPage() {
           </div>
 
           <form onSubmit={submit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Admission Number / Email Address</Label>
-              <Input id="email" type="text" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="e.g. 122000 or you@university.edu" required />
+            <div className="space-y-2 animate-fade-in">
+              <Label htmlFor="email" className="text-xs font-bold text-muted-foreground tracking-wider uppercase">Admission Number / Email Address</Label>
+              <Input id="email" type="text" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="e.g. 122000 or you@university.edu" className="rounded-xl h-11 border-border/80 bg-background/50 focus-visible:ring-primary focus-visible:ring-2 transition-all" required />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
+            <div className="space-y-2 animate-fade-in" style={{ animationDelay: "50ms" }}>
+              <Label htmlFor="password" className="text-xs font-bold text-muted-foreground tracking-wider uppercase">Password</Label>
+              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="rounded-xl h-11 border-border/80 bg-background/50 focus-visible:ring-primary focus-visible:ring-2 transition-all" required />
             </div>
 
             {/* Student credentials display instructions */}
-            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5 text-xs text-muted-foreground space-y-1 font-medium">
-              <div className="font-bold text-foreground flex items-center gap-1.5 mb-1.5">
-                <Sparkles className="size-3.5 text-primary" /> Student Login Info
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 text-xs text-muted-foreground space-y-2 font-medium shadow-sm backdrop-blur-xs animate-fade-in" style={{ animationDelay: "100ms" }}>
+              <div className="font-bold text-primary flex items-center gap-1.5 mb-1 bg-primary/10 w-fit px-2.5 py-1 rounded-lg">
+                <Sparkles className="size-3.5 text-primary animate-pulse" /> Student Login Info
               </div>
-              <div><strong className="text-foreground">Username:</strong> Admission Number (e.g. <code className="bg-muted px-1.5 py-0.5 rounded font-mono font-bold">122000</code>)</div>
-              <div><strong className="text-foreground">Password:</strong> Admission Number (first login only)</div>
+              <div className="flex items-center justify-between border-b border-border/40 pb-1.5"><span className="text-muted-foreground">Username</span><span className="font-mono font-bold text-foreground bg-muted/80 px-2 py-0.5 rounded">Admission Number (e.g. 122000)</span></div>
+              <div className="flex items-center justify-between"><span className="text-muted-foreground">Password</span><span className="font-mono font-bold text-foreground bg-muted/80 px-2 py-0.5 rounded">Admission Number (first login)</span></div>
             </div>
 
-            <Button type="submit" className="w-full gradient-bg text-primary-foreground shadow-elegant h-11 text-base neon-glow hover:scale-[1.01] transition-transform">
+            <Button type="submit" className="w-full gradient-bg text-primary-foreground shadow-elegant h-11 text-base neon-glow hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer font-semibold rounded-xl">
               Sign in <ArrowRight className="ml-1 size-4" />
             </Button>
           </form>

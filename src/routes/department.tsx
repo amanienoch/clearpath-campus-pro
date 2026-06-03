@@ -120,37 +120,37 @@ function DepartmentPage() {
           </div>
         </div>
 
-        <div className="glass-strong rounded-2xl overflow-hidden">
+        <div className="glass-strong rounded-2xl overflow-hidden border border-border/40">
           {filtered.length === 0 ? (
-            <div className="p-12 text-center select-none">
-              <Inbox className="size-12 mx-auto text-muted-foreground/40 mb-3" />
-              <h3 className="font-display font-semibold text-base sm:text-lg">You're all caught up.</h3>
-              <p className="text-sm text-muted-foreground mt-1 font-medium">No pending clearance requests require attention in this department queue.</p>
+            <div className="p-12 text-center select-none animate-fade-in">
+              <Inbox className="size-10 mx-auto text-muted-foreground/30 mb-3" />
+              <h3 className="font-semibold text-sm text-foreground/90">All caught up</h3>
+              <p className="text-xs text-muted-foreground mt-1 font-medium">No records match the current filters.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-muted/50 text-left">
+                <thead className="bg-muted/40 text-left">
                   <tr>
-                    <th className="px-4 py-3 font-medium">Student</th>
-                    <th className="px-4 py-3 font-medium">Clearance ID</th>
-                    <th className="px-4 py-3 font-medium">Submitted</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 font-medium text-right">Actions</th>
+                    <th className="px-4 py-3 font-semibold">Student</th>
+                    <th className="px-4 py-3 font-semibold">Clearance ID</th>
+                    <th className="px-4 py-3 font-semibold">Submitted</th>
+                    <th className="px-4 py-3 font-semibold">Status</th>
+                    <th className="px-4 py-3 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((r, i) => (
-                    <tr key={r.id} className="border-t row-hover animate-fade-up" style={{ animationDelay: `${i * 30}ms` }}>
+                    <tr key={r.id} className="border-t row-hover-premium animate-fade-up" style={{ animationDelay: `${i * 30}ms` }}>
                       <td className="px-4 py-3">
                         <div className="font-semibold">{r.studentName}</div>
-                        <div className="text-xs text-muted-foreground">{r.matricNo} · {r.program}</div>
+                        <div className="text-xs text-muted-foreground font-semibold">{r.matricNo} · {r.program}</div>
                       </td>
-                      <td className="px-4 py-3 font-mono">{r.clearanceId}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{new Date(r.submittedAt).toLocaleDateString()}</td>
+                      <td className="px-4 py-3 font-mono font-bold">{r.clearanceId}</td>
+                      <td className="px-4 py-3 text-muted-foreground font-medium">{new Date(r.submittedAt).toLocaleDateString()}</td>
                       <td className="px-4 py-3"><StatusBadge status={myStatusOf(r)} /></td>
                       <td className="px-4 py-3 text-right">
-                        <Button size="sm" variant="outline" className="hover:scale-[1.03] transition-transform" onClick={() => setSelected(r)}>Review</Button>
+                        <Button size="sm" variant="outline" className="hover:scale-[1.02] transition-all cursor-pointer font-semibold rounded-xl" onClick={() => setSelected(r)}>Review</Button>
                       </td>
                     </tr>
                   ))}
@@ -179,22 +179,30 @@ function StatCard({
   onClick?: () => void;
   active?: boolean;
 }) {
+  const toneBgCls = label.includes("Approved")
+    ? "bg-success/15 text-success border border-success/20"
+    : label.includes("Pending")
+      ? "bg-warning/15 text-warning border border-warning/20"
+      : label.includes("Rejected")
+        ? "bg-destructive/15 text-destructive border border-destructive/20"
+        : "bg-primary/15 text-primary border border-primary/20";
+
   return (
     <button
       onClick={onClick}
       className={cn(
-        "text-left block w-full rounded-2xl transition-all cursor-pointer focus:outline-none",
-        active ? "ring-2 ring-primary ring-offset-2 scale-[1.01] shadow-md" : "hover:scale-[1.01]"
+        "text-left block w-full rounded-2xl transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+        active ? "ring-2 ring-primary ring-offset-2 scale-[1.01] shadow-md border-primary/30" : "hover:scale-[1.01]"
       )}
     >
-      <div className="glass-strong rounded-2xl p-5 hover-lift animate-fade-up h-full">
+      <div className="glass-strong rounded-2xl p-5 hover-lift animate-fade-up border border-border/40 hover:border-border/80 h-full transition-all duration-200">
         <div className="flex items-center justify-between">
-          <div className="size-10 rounded-xl bg-accent grid place-items-center">{icon}</div>
+          <div className={`size-11 rounded-xl grid place-items-center ${toneBgCls} transition-transform group-hover:scale-110`}>{icon}</div>
         </div>
-        <div className="mt-3 font-display font-bold text-3xl">
+        <div className="mt-4 font-display font-bold text-2xl sm:text-3xl tracking-tight text-foreground/95">
           <AnimatedCounter value={value} />
         </div>
-        <div className="text-sm text-muted-foreground">{label}</div>
+        <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mt-2">{label}</div>
       </div>
     </button>
   );
