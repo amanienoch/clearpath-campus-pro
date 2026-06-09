@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { AppShell } from "@/components/AppShell";
 import { cn } from "@/lib/utils";
@@ -56,6 +56,14 @@ const COLOR_PRIMARY = "oklch(0.52 0.22 265)";
 function DepartmentPage() {
   const user = useAuthUser();
   const dept = user?.department as Department | undefined;
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (dept === "Registrar") {
+      navigate({ to: "/registrar" });
+    }
+  }, [dept, navigate]);
+
   const all = useStore((s) => s.requests);
   const allUsers = useStore((s) => s.users);
   const activity = useStore((s) => s.activity);
