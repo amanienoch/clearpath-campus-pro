@@ -17,7 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { QrCode } from "@/components/QrCode";
-import { NGN } from "@/lib/eligibility";
+import { NGN, evaluateDepartment } from "@/lib/eligibility";
 import {
   LayoutDashboard, Search, CheckCircle2, Clock, XCircle, Inbox, BadgeCheck, Sparkles, AlertTriangle,
   Activity, TrendingUp, BarChart3, Timer, CalendarDays, Percent, FileText, ExternalLink,
@@ -93,6 +93,7 @@ function RegistrarDashboard() {
 
   // Modal Remarks State
   const [reviewRemarks, setReviewRemarks] = useState("");
+  const [showDurationModal, setShowDurationModal] = useState(false);
 
   // Helpers
   const getStudentObligations = useCallback((studentId: string) => {
@@ -122,20 +123,43 @@ function RegistrarDashboard() {
     const ob = getStudentObligations(studentId);
     
     let outstandingDepts = 5; // default if no request exists yet
+    let hasRejection = false;
     if (request) {
       outstandingDepts = request.departments.filter(
         (d) => d.department !== "Registrar" && d.status !== "approved"
       ).length;
+      hasRejection = request.departments.some(
+        (d) => d.department !== "Registrar" && d.status === "rejected"
+      );
+    } else {
+      // Proactively evaluate using evaluateDepartment if no request exists
+      const data = { loans, fees, assets, hostel, sports };
+      const deptsToEvaluate: Department[] = ["Finance", "Library", "ICT", "Hostel", "Sports"];
+      let ineligibleDeptsCount = 0;
+      deptsToEvaluate.forEach((d) => {
+        const result = evaluateDepartment(d, studentId, data);
+        if (!result.eligible) {
+          ineligibleDeptsCount++;
+        }
+      });
+      outstandingDepts = ineligibleDeptsCount;
     }
     
-    const score = Math.max(0, Math.min(100, 100 - (outstandingDepts * 20) - (ob.totalCount * 5)));
+    let score = 100 - (outstandingDepts * 20) - (ob.totalCount * 5);
+    
+    // Clamp score to max 49 if any department has rejected the request
+    if (hasRejection) {
+      score = Math.min(score, 49);
+    }
+    
+    score = Math.max(0, Math.min(100, score));
     
     let label: "Ready" | "Almost Ready" | "Blocked" = "Blocked";
     if (score >= 90) label = "Ready";
     else if (score >= 70) label = "Almost Ready";
     
     return { score, label, outstandingDepts, obligationsCount: ob.totalCount };
-  }, [getStudentObligations]);
+  }, [getStudentObligations, loans, fees, assets, hostel, sports]);
 
   const calculateRecommendation = useCallback((request: ClearanceRequest) => {
     const ob = getStudentObligations(request.studentId);
@@ -159,10 +183,10 @@ function RegistrarDashboard() {
       return reg && reg.status === "pending";
     }).length;
 
-    // Ready for graduation (score >= 90 or all departments approved)
+    // Ready for graduation (active clearance requests with readiness score >= 90)
     const readyForGrad = requests.filter((r) => {
       const read = calculateReadiness(r.studentId, r);
-      return read.score >= 90 || r.overallStatus === "approved";
+      return read.score >= 90;
     }).length;
 
     const completionRate = total > 0 ? Math.round((approvedOverall / total) * 100) : 0;
@@ -184,19 +208,18 @@ function RegistrarDashboard() {
       avgDurationStr = avgDays < 1 ? `${Math.round(avgDays * 24)}h` : `${avgDays.toFixed(1)}d`;
     }
 
-    // Students blocked (at least 1 rejected, or outstanding obligations blocking them)
+    // Students blocked (active requests with readiness score <= 69)
     const blockedCount = requests.filter((r) => {
-      const hasRejected = r.departments.some((d) => d.status === "rejected");
       const read = calculateReadiness(r.studentId, r);
-      return hasRejected || read.score < 70;
+      return read.score <= 69;
     }).length;
 
-    // Outstanding Obligations Value across the entire university
+    // Outstanding Obligations Value across the entire university (aggregate all financial liabilities)
     const outstandingVal = 
       fees.reduce((s, f) => s + Number(f.amountDue ?? 0), 0) +
       loans.reduce((s, l) => s + (l.returned ? 0 : Number(l.fineAmount ?? 0)), 0) +
       assets.reduce((s, a) => s + (a.returned ? 0 : Number(a.replacementCost ?? 0)), 0) +
-      hostel.reduce((s, h) => s + (h.checkedOut ? 0 : Number(h.damageFee ?? 0)), 0) +
+      hostel.reduce((s, h) => s + Number(h.damageFee ?? 0), 0) +
       sports.reduce((s, sp) => s + (sp.returned ? 0 : Number(sp.replacementCost ?? 0)), 0);
 
     return {
@@ -366,33 +389,44 @@ function RegistrarDashboard() {
     }
   };
 
-  // Funnel calculations
+  // Pipeline funnel calculations - mathematically consistent
   const pipelineStages = useMemo(() => {
-    const total = requests.length || 1;
-    const stage1 = requests.length; // Student submitted
-    const stage2 = requests.filter((r) => 
-      r.departments.some((d) => d.department !== "Registrar" && d.status !== "approved")
-    ).length; // Departments Review
+    const total = requests.length;
+    const totalSafe = total || 1;
     
+    // Stage 1: Submitted (All requests)
+    const stage1 = total;
+    
+    // Stage 2: Departments Review (At least one department review excluding Registrar is pending or rejected)
+    const stage2 = requests.filter((r) => 
+      r.overallStatus !== "approved" &&
+      r.departments.some((d) => d.department !== "Registrar" && d.status !== "approved")
+    ).length;
+    
+    // Stage 3: All Departments Approved (All other departments cleared)
     const stage3 = requests.filter((r) => 
       r.departments.every((d) => d.department === "Registrar" || d.status === "approved")
-    ).length; // All Departments Approved
+    ).length;
     
+    // Stage 4: Registrar Review (All other departments cleared but Registrar is pending)
     const stage4 = requests.filter((r) => 
       r.departments.every((d) => d.department === "Registrar" || d.status === "approved") &&
       r.departments.find((d) => d.department === "Registrar")?.status === "pending"
-    ).length; // Registrar Review
+    ).length;
     
-    const stage5 = requests.filter((r) => r.overallStatus === "approved").length; // Certificate Generated
-    const stage6 = stage5; // Public verification active
+    // Stage 5: Certificate Generated (Overall status approved)
+    const stage5 = requests.filter((r) => r.overallStatus === "approved").length;
+    
+    // Stage 6: Public Verification (Same as approved)
+    const stage6 = stage5;
     
     return [
-      { name: "Student Submit", count: stage1, pct: Math.round((stage1/total)*100), color: "border-primary/30 bg-primary/5 text-primary", key: "all" },
-      { name: "Dept Reviews", count: stage2, pct: Math.round((stage2/total)*100), color: "border-warning/30 bg-warning/5 text-warning", key: "pending" },
-      { name: "Depts Approved", count: stage3, pct: Math.round((stage3/total)*100), color: "border-success/30 bg-success/5 text-success", key: "ready" },
-      { name: "Registrar Review", count: stage4, pct: Math.round((stage4/total)*100), color: "border-indigo-500/30 bg-indigo-500/5 text-indigo-400", key: "ready" },
-      { name: "Certified Ready", count: stage5, pct: Math.round((stage5/total)*100), color: "border-emerald-500/30 bg-emerald-500/5 text-emerald-400", key: "approved" },
-      { name: "Verification", count: stage6, pct: Math.round((stage6/total)*100), color: "border-teal-500/30 bg-teal-500/5 text-teal-400", key: "approved" }
+      { name: "Student Submit", count: stage1, pct: Math.round((stage1/totalSafe)*100), color: "border-primary/30 bg-primary/5 text-primary", key: "all" },
+      { name: "Dept Reviews", count: stage2, pct: Math.round((stage2/totalSafe)*100), color: "border-warning/30 bg-warning/5 text-warning", key: "pending" },
+      { name: "Depts Approved", count: stage3, pct: Math.round((stage3/totalSafe)*100), color: "border-success/30 bg-success/5 text-success", key: "ready" },
+      { name: "Registrar Review", count: stage4, pct: Math.round((stage4/totalSafe)*100), color: "border-indigo-500/30 bg-indigo-500/5 text-indigo-400", key: "ready" },
+      { name: "Certified Ready", count: stage5, pct: Math.round((stage5/totalSafe)*100), color: "border-emerald-500/30 bg-emerald-500/5 text-emerald-400", key: "approved" },
+      { name: "Verification", count: stage6, pct: Math.round((stage6/totalSafe)*100), color: "border-teal-500/30 bg-teal-500/5 text-teal-400", key: "approved" }
     ];
   }, [requests]);
 
@@ -456,9 +490,8 @@ function RegistrarDashboard() {
     let almostReady = 0;
     let blocked = 0;
 
-    const students = users.filter((u) => u.role === "student");
-    students.forEach((s) => {
-      const info = calculateReadiness(s.id, requests.find((r) => r.studentId === s.id));
+    requests.forEach((r) => {
+      const info = calculateReadiness(r.studentId, r);
       if (info.score >= 90) ready++;
       else if (info.score >= 70) almostReady++;
       else blocked++;
@@ -469,7 +502,44 @@ function RegistrarDashboard() {
       { name: "Almost Ready (70-89)", value: almostReady, color: "oklch(0.78 0.16 75)" },
       { name: "Blocked (0-69)", value: blocked, color: "oklch(0.6 0.23 27)" },
     ];
-  }, [users, requests, calculateReadiness]);
+  }, [requests, calculateReadiness]);
+
+  // Clearance Duration Audit calculations for breakdown modal
+  const overallAvgDuration = useMemo(() => {
+    const approvedReqs = requests.filter((r) => r.overallStatus === "approved");
+    if (approvedReqs.length === 0) return { avgStr: "—", count: 0 };
+    const totalDuration = approvedReqs.reduce((sum, r) => {
+      const start = new Date(r.submittedAt).getTime();
+      const end = r.departments.reduce((max, d) => {
+        if (!d.reviewedAt) return max;
+        const t = new Date(d.reviewedAt).getTime();
+        return t > max ? t : max;
+      }, start);
+      return sum + (end - start);
+    }, 0);
+    const avgDays = totalDuration / approvedReqs.length / (1000 * 60 * 60 * 24);
+    const avgStr = avgDays < 1 ? `${Math.round(avgDays * 24)}h` : `${avgDays.toFixed(1)}d`;
+    return { avgStr, count: approvedReqs.length };
+  }, [requests]);
+
+  const deptDurations = useMemo(() => {
+    return DEPARTMENTS.map((d) => {
+      const reviewedReqs = requests.filter((r) => {
+        const rev = r.departments.find((x) => x.department === d);
+        return rev && rev.status !== "pending" && rev.reviewedAt;
+      });
+      if (reviewedReqs.length === 0) return { name: d, avgStr: "—", count: 0 };
+      const totalDuration = reviewedReqs.reduce((sum, r) => {
+        const rev = r.departments.find((x) => x.department === d)!;
+        const start = new Date(r.submittedAt).getTime();
+        const end = new Date(rev.reviewedAt!).getTime();
+        return sum + Math.max(0, end - start);
+      }, 0);
+      const avgDays = totalDuration / reviewedReqs.length / (1000 * 60 * 60 * 24);
+      const avgStr = avgDays < 1 ? `${Math.round(avgDays * 24)}h` : `${avgDays.toFixed(1)}d`;
+      return { name: d, avgStr, count: reviewedReqs.length };
+    });
+  }, [requests]);
 
   // Certificate Control Center statistics
   const certCenterStats = useMemo(() => {
@@ -639,7 +709,7 @@ function RegistrarDashboard() {
               <BigStat icon={<Percent className="size-6 text-emerald-400 animate-pulse" />} label="Completion Rate" value={`${kpiStats.completionRate}%`} tone="success" />
             </button>
             <button
-              onClick={() => setActiveTab("approvals")}
+              onClick={() => setShowDurationModal(true)}
               className="text-left w-full hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer block rounded-2xl"
             >
               <BigStat icon={<Timer className="size-6 text-primary" />} label="Average Duration" value={kpiStats.avgDuration} />
@@ -780,11 +850,14 @@ function RegistrarDashboard() {
               <span className="font-display text-2xl font-bold text-destructive mt-2 block"><AnimatedCounter value={queueMetrics.blockedCases} /></span>
               <span className="text-[9px] text-muted-foreground mt-1 block">Any department rejected</span>
             </div>
-            <div className="glass-strong rounded-2xl p-4 border border-border/40 text-left hover-lift">
+            <button
+              onClick={() => setShowDurationModal(true)}
+              className="glass-strong rounded-2xl p-4 border border-border/40 text-left hover-lift cursor-pointer hover:border-primary/50 transition-colors w-full"
+            >
               <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">Avg Processing Time</span>
               <span className="font-display text-2xl font-bold text-primary mt-2 block">{kpiStats.avgDuration}</span>
               <span className="text-[9px] text-muted-foreground mt-1 block">Submission to completion</span>
-            </div>
+            </button>
             <div className="glass-strong rounded-2xl p-4 border border-border/40 text-left hover-lift col-span-2 sm:col-span-1">
               <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">Certificates Pending</span>
               <span className="font-display text-2xl font-bold text-indigo-400 mt-2 block"><AnimatedCounter value={queueMetrics.pendingCerts} /></span>
@@ -1551,6 +1624,51 @@ function RegistrarDashboard() {
 
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Clearance Duration Audit Breakdown Modal */}
+      <Dialog open={showDurationModal} onOpenChange={setShowDurationModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl flex items-center gap-2">
+              <Timer className="size-5 text-primary" /> Clearance Duration Audit
+            </DialogTitle>
+            <DialogDescription className="text-xs">Detailed audit of average processing times overall and across individual university departments</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">Overall Average Clearance</span>
+                <span className="text-xs text-muted-foreground font-medium">From student submission to final registrar certificate issue</span>
+              </div>
+              <div className="text-right">
+                <span className="font-display text-2xl font-bold text-primary block">{overallAvgDuration.avgStr}</span>
+                <span className="text-[10px] text-muted-foreground font-semibold">({overallAvgDuration.count} requests)</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">Departmental Breakdowns</span>
+              <div className="divide-y divide-border/20 border rounded-xl overflow-hidden bg-card/50">
+                {deptDurations.map((d) => (
+                  <div key={d.name} className="flex items-center justify-between p-3 text-xs font-semibold">
+                    <span className="text-foreground">{d.name} Department</span>
+                    <div className="text-right flex items-center gap-2">
+                      <span className="text-muted-foreground font-medium">({d.count} reviewed)</span>
+                      <span className="font-mono text-foreground font-bold">{d.avgStr}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button onClick={() => setShowDurationModal(false)} className="w-full gradient-bg text-primary-foreground shadow-elegant rounded-xl">
+                Close Audit Modal
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </AppShell>
