@@ -21,8 +21,10 @@ import { NGN, evaluateDepartment } from "@/lib/eligibility";
 import {
   LayoutDashboard, Search, CheckCircle2, Clock, XCircle, Inbox, BadgeCheck, Sparkles, AlertTriangle,
   Activity, TrendingUp, BarChart3, Timer, CalendarDays, Percent, FileText, ExternalLink,
-  BookOpen, Wallet, Laptop, Home, Trophy, Check, Shield, Zap, ChevronRight, Download, Filter, ArrowUpDown, ChevronDown
+  BookOpen, Wallet, Laptop, Home, Trophy, Check, Shield, Zap, ChevronRight, Download, Filter, ArrowUpDown, ChevronDown,
+  HelpCircle
 } from "lucide-react";
+import { Tooltip as ShTooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip,
   LineChart, Line, CartesianGrid, PieChart, Pie, Cell, Legend, AreaChart, Area
@@ -724,7 +726,13 @@ function RegistrarDashboard() {
               onClick={() => setActiveTab("analytics")}
               className="text-left w-full hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer block rounded-2xl"
             >
-              <BigStat icon={<Wallet className="size-6 text-destructive animate-pulse" />} label="Outstanding Value" value={NGN(kpiStats.outstandingVal)} tone="destructive" />
+              <BigStat
+                icon={<Wallet className="size-6 text-destructive animate-pulse" />}
+                label="Total University Liabilities"
+                value={NGN(kpiStats.outstandingVal)}
+                tone="destructive"
+                tooltip="Aggregated financial value of all outstanding student obligations: unpaid fees, library fines, ICT asset replacements, hostel damages, and sports kit liabilities across the university."
+              />
             </button>
           </div>
 
@@ -1675,7 +1683,7 @@ function RegistrarDashboard() {
   );
 }
 
-function BigStat({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: number | string; tone?: "success" | "warning" | "destructive" }) {
+function BigStat({ icon, label, value, tone, tooltip }: { icon: React.ReactNode; label: string; value: number | string; tone?: "success" | "warning" | "destructive"; tooltip?: string }) {
   const toneBgCls = tone === "success" 
     ? "bg-success/15 text-success border border-success/20" 
     : tone === "warning" 
@@ -1684,17 +1692,37 @@ function BigStat({ icon, label, value, tone }: { icon: React.ReactNode; label: s
         ? "bg-destructive/15 text-destructive border border-destructive/20" 
         : "bg-primary/15 text-primary border border-primary/20";
 
-  return (
-    <div className="glass-strong rounded-2xl p-5 hover-lift animate-fade-up border border-border/40 shadow-xs hover:border-border/80 transition-all duration-200 text-left">
+  const content = (
+    <div className="glass-strong rounded-2xl p-5 hover-lift animate-fade-up border border-border/40 shadow-xs hover:border-border/80 transition-all duration-200 text-left h-full">
       <div className="flex items-center justify-between">
         <div className={`size-11 rounded-xl grid place-items-center ${toneBgCls} transition-transform group-hover:scale-110`}>{icon}</div>
       </div>
       <div className="font-display font-bold text-2xl sm:text-3xl mt-4 tracking-tight text-foreground/95 truncate">
         {typeof value === "number" ? <AnimatedCounter value={value} /> : value}
       </div>
-      <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mt-2">{label}</div>
+      <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mt-2 flex items-center gap-1.5">
+        <span>{label}</span>
+        {tooltip && <HelpCircle className="size-3 text-muted-foreground/60 hover:text-muted-foreground shrink-0 cursor-help" />}
+      </div>
     </div>
   );
+
+  if (tooltip) {
+    return (
+      <TooltipProvider delayDuration={200}>
+        <ShTooltip>
+          <TooltipTrigger asChild>
+            <div className="h-full w-full">{content}</div>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-[260px] bg-popover text-popover-foreground border shadow-md p-2 text-xs leading-normal">
+            {tooltip}
+          </TooltipContent>
+        </ShTooltip>
+      </TooltipProvider>
+    );
+  }
+
+  return content;
 }
 
 function Info({ label, value }: { label: string; value: string }) {
