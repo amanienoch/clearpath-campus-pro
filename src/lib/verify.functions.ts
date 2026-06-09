@@ -74,3 +74,28 @@ export const resolveMatricToEmail = createServerFn({ method: "POST" })
       .maybeSingle();
     return profile?.email ?? null;
   });
+
+export const getRegistrarObligations = createServerFn({ method: "POST" })
+  .handler(async (): Promise<{
+    fees: any[];
+    loans: any[];
+    assets: any[];
+    hostel: any[];
+    sports: any[];
+  }> => {
+    const [fees, loans, assets, hostel, sports] = await Promise.all([
+      supabaseAdmin.from("fee_balances").select("*"),
+      supabaseAdmin.from("library_loans").select("*"),
+      supabaseAdmin.from("ict_assets").select("*"),
+      supabaseAdmin.from("hostel_assignments").select("*"),
+      supabaseAdmin.from("sports_loans").select("*"),
+    ]);
+
+    return {
+      fees: fees.data ?? [],
+      loans: loans.data ?? [],
+      assets: assets.data ?? [],
+      hostel: hostel.data ?? [],
+      sports: sports.data ?? [],
+    };
+  });

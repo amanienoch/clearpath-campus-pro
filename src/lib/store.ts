@@ -103,22 +103,59 @@ function profileRowToUser(p: Record<string, unknown>, role: Role): User {
 }
 
 async function loadAll() {
-  // Run reads in parallel but defend against individual failures so UI doesn't break on a single 500
-  const queries = {
+  const curUser = auth.user;
+  const isRegistrarOrAdmin = curUser && (
+    curUser.role === "admin" ||
+    (curUser.role === "department" && curUser.department === "Registrar")
+  );
+
+  // We run core queries in parallel
+  const coreQueries = {
     profiles: supabase.from("profiles").select("*"),
     roles: supabase.from("user_roles").select("user_id, role"),
     reqs: supabase.from("clearance_requests").select("*").order("submitted_at", { ascending: false }),
     revs: supabase.from("dept_reviews").select("*"),
     acts: supabase.from("activity_logs").select("*").order("at", { ascending: false }).limit(100),
-    loans: supabase.from("library_loans").select("*"),
-    fees: supabase.from("fee_balances").select("*"),
-    assets: supabase.from("ict_assets").select("*"),
-    hostel: supabase.from("hostel_assignments").select("*"),
-    sports: supabase.from("sports_loans").select("*"),
   };
 
-  const results = await Promise.all(Object.values(queries).map((q: any) => q.catch ? q.catch((e: any) => ({ error: e })) : q));
-  const [profilesRes, rolesRes, reqsRes, revsRes, actsRes, loansRes, feesRes, assetsRes, hostelRes, sportsRes] = results as any[];
+  const corePromises = Promise.all(
+    Object.values(coreQueries).map((q: any) => q.catch ? q.catch((e: any) => ({ error: e })) : q)
+  );
+
+  let obPromise: Promise<{ fees: any[]; loans: any[]; assets: any[]; hostel: any[]; sports: any[] }> | null = null;
+  let obQueriesPromise: Promise<any[]> | null = null;
+
+  if (isRegistrarOrAdmin) {
+    obPromise = import("./verify.functions").then(({ getRegistrarObligations }) => getRegistrarObligations());
+  } else {
+    const obQueries = {
+      loans: supabase.from("library_loans").select("*"),
+      fees: supabase.from("fee_balances").select("*"),
+      assets: supabase.from("ict_assets").select("*"),
+      hostel: supabase.from("hostel_assignments").select("*"),
+      sports: supabase.from("sports_loans").select("*"),
+    };
+    obQueriesPromise = Promise.all(
+      Object.values(obQueries).map((q: any) => q.catch ? q.catch((e: any) => ({ error: e })) : q)
+    );
+  }
+
+  // Await everything in parallel
+  const [coreResults, obResults, serverObRes] = await Promise.all([
+    corePromises,
+    obQueriesPromise,
+    obPromise ? obPromise.catch((e) => {
+      console.error("Failed to fetch registrar obligations", e);
+      return { fees: [], loans: [], assets: [], hostel: [], sports: [] };
+    }) : Promise.resolve(null)
+  ]);
+
+  const [profilesRes, rolesRes, reqsRes, revsRes, actsRes] = coreResults;
+  let loansRes: any, feesRes: any, assetsRes: any, hostelRes: any, sportsRes: any;
+
+  if (!isRegistrarOrAdmin && obResults) {
+    [loansRes, feesRes, assetsRes, hostelRes, sportsRes] = obResults;
+  }
 
   // Normalize errors: if a request failed, replace with empty data and log
   const norm = (r: any, name: string) => {
@@ -129,16 +166,12 @@ async function loadAll() {
     }
     return r;
   };
+
   const _profilesRes = norm(profilesRes, 'profiles');
   const _rolesRes = norm(rolesRes, 'user_roles');
   const _reqsRes = norm(reqsRes, 'clearance_requests');
   const _revsRes = norm(revsRes, 'dept_reviews');
   const _actsRes = norm(actsRes, 'activity_logs');
-  const _loansRes = norm(loansRes, 'library_loans');
-  const _feesRes = norm(feesRes, 'fee_balances');
-  const _assetsRes = norm(assetsRes, 'ict_assets');
-  const _hostelRes = norm(hostelRes, 'hostel_assignments');
-  const _sportsRes = norm(sportsRes, 'sports_loans');
 
   const roleMap = new Map<string, Role>();
   for (const r of _rolesRes.data ?? []) {
@@ -164,42 +197,91 @@ async function loadAll() {
     target: (a.target as string) ?? undefined,
   }));
 
-  const loans: LibraryLoan[] = (_loansRes.data ?? []).map((l) => ({
-    id: l.id as string,
-    studentId: l.student_id as string,
-    bookTitle: l.book_title as string,
-    dueDate: l.due_date as string,
-    returned: l.returned as boolean,
-    fineAmount: Number(l.fine_amount ?? 0),
-  }));
-  const fees: FeeBalance[] = (_feesRes.data ?? []).map((f) => ({
-    id: f.id as string,
-    studentId: f.student_id as string,
-    item: f.item as string,
-    amountDue: Number(f.amount_due ?? 0),
-  }));
-  const assets: IctAsset[] = (_assetsRes.data ?? []).map((a) => ({
-    id: a.id as string,
-    studentId: a.student_id as string,
-    asset: a.asset as string,
-    returned: a.returned as boolean,
-    replacementCost: Number(a.replacement_cost ?? 0),
-  }));
-  const hostel: HostelAssignment[] = (_hostelRes.data ?? []).map((h) => ({
-    id: h.id as string,
-    studentId: h.student_id as string,
-    room: h.room as string,
-    checkedOut: h.checked_out as boolean,
-    damageFee: Number(h.damage_fee ?? 0),
-  }));
+  let loans: LibraryLoan[];
+  let fees: FeeBalance[];
+  let assets: IctAsset[];
+  let hostel: HostelAssignment[];
+  let sports: import("./types").SportsLoan[];
 
-  const sports: import("./types").SportsLoan[] = (_sportsRes.data ?? []).map((s) => ({
-    id: s.id as string,
-    studentId: s.student_id as string,
-    equipment: s.equipment as string,
-    returned: s.returned as boolean,
-    replacementCost: Number(s.replacement_cost ?? 0),
-  }));
+  if (isRegistrarOrAdmin && serverObRes) {
+    loans = serverObRes.loans.map((l: any) => ({
+      id: l.id as string,
+      studentId: l.student_id as string,
+      bookTitle: l.book_title as string,
+      dueDate: l.due_date as string,
+      returned: l.returned as boolean,
+      fineAmount: Number(l.fine_amount ?? 0),
+    }));
+    fees = serverObRes.fees.map((f: any) => ({
+      id: f.id as string,
+      studentId: f.student_id as string,
+      item: f.item as string,
+      amountDue: Number(f.amount_due ?? 0),
+    }));
+    assets = serverObRes.assets.map((a: any) => ({
+      id: a.id as string,
+      studentId: a.student_id as string,
+      asset: a.asset as string,
+      returned: a.returned as boolean,
+      replacementCost: Number(a.replacement_cost ?? 0),
+    }));
+    hostel = serverObRes.hostel.map((h: any) => ({
+      id: h.id as string,
+      studentId: h.student_id as string,
+      room: h.room as string,
+      checkedOut: h.checked_out as boolean,
+      damageFee: Number(h.damage_fee ?? 0),
+    }));
+    sports = serverObRes.sports.map((s: any) => ({
+      id: s.id as string,
+      studentId: s.student_id as string,
+      equipment: s.equipment as string,
+      returned: s.returned as boolean,
+      replacementCost: Number(s.replacement_cost ?? 0),
+    }));
+  } else {
+    const _loansRes = norm(loansRes, 'library_loans');
+    const _feesRes = norm(feesRes, 'fee_balances');
+    const _assetsRes = norm(assetsRes, 'ict_assets');
+    const _hostelRes = norm(hostelRes, 'hostel_assignments');
+    const _sportsRes = norm(sportsRes, 'sports_loans');
+
+    loans = (_loansRes.data ?? []).map((l: any) => ({
+      id: l.id as string,
+      studentId: l.student_id as string,
+      bookTitle: l.book_title as string,
+      dueDate: l.due_date as string,
+      returned: l.returned as boolean,
+      fineAmount: Number(l.fine_amount ?? 0),
+    }));
+    fees = (_feesRes.data ?? []).map((f: any) => ({
+      id: f.id as string,
+      studentId: f.student_id as string,
+      item: f.item as string,
+      amountDue: Number(f.amount_due ?? 0),
+    }));
+    assets = (_assetsRes.data ?? []).map((a: any) => ({
+      id: a.id as string,
+      studentId: a.student_id as string,
+      asset: a.asset as string,
+      returned: a.returned as boolean,
+      replacementCost: Number(a.replacement_cost ?? 0),
+    }));
+    hostel = (_hostelRes.data ?? []).map((h: any) => ({
+      id: h.id as string,
+      studentId: h.student_id as string,
+      room: h.room as string,
+      checkedOut: h.checked_out as boolean,
+      damageFee: Number(h.damage_fee ?? 0),
+    }));
+    sports = (_sportsRes.data ?? []).map((s: any) => ({
+      id: s.id as string,
+      studentId: s.student_id as string,
+      equipment: s.equipment as string,
+      returned: s.returned as boolean,
+      replacementCost: Number(s.replacement_cost ?? 0),
+    }));
+  }
 
   setState(() => ({ users, requests, activity, loans, fees, assets, hostel, sports, hydrated: true }));
 }
