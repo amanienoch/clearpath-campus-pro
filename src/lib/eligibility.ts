@@ -45,14 +45,14 @@ export function evaluateDepartment(
 ): EligibilityResult {
   switch (department) {
     case "Library": {
-      const mine = data.loans.filter((l) => l.studentId === studentId);
+      const mine = (data.loans ?? []).filter((l) => l.studentId === studentId);
       const obligations: ObligationLine[] = mine.map((l) => ({
-        label: l.bookTitle,
-        detail: l.returned
-          ? `Returned · due ${new Date(l.dueDate).toLocaleDateString()}`
-          : `Outstanding · due ${new Date(l.dueDate).toLocaleDateString()}`,
-        cost: l.returned ? 0 : l.fineAmount,
-        blocking: !l.returned,
+        label: l.bookTitle || "Unknown Book",
+        detail: (l.returned ?? false)
+          ? `Returned · due ${l.dueDate ? new Date(l.dueDate).toLocaleDateString() : "N/A"}`
+          : `Outstanding · due ${l.dueDate ? new Date(l.dueDate).toLocaleDateString() : "N/A"}`,
+        cost: (l.returned ?? false) ? 0 : (l.fineAmount ?? 0),
+        blocking: !(l.returned ?? false),
       }));
       const outstanding = obligations.filter((o) => o.blocking);
       const totalCost = outstanding.reduce((s, o) => s + o.cost, 0);
@@ -70,11 +70,11 @@ export function evaluateDepartment(
       };
     }
     case "Finance": {
-      const mine = data.fees.filter((f) => f.studentId === studentId);
+      const mine = (data.fees ?? []).filter((f) => f.studentId === studentId);
       const obligations: ObligationLine[] = mine.map((f) => ({
-        label: f.item,
-        cost: Number(f.amountDue),
-        blocking: Number(f.amountDue) > 0,
+        label: f.item || "Unknown Fee Item",
+        cost: Number(f.amountDue ?? 0),
+        blocking: Number(f.amountDue ?? 0) > 0,
       }));
       const totalCost = obligations.reduce((s, o) => s + o.cost, 0);
       const eligible = totalCost === 0;
@@ -91,12 +91,12 @@ export function evaluateDepartment(
       };
     }
     case "ICT": {
-      const mine = data.assets.filter((a) => a.studentId === studentId);
+      const mine = (data.assets ?? []).filter((a) => a.studentId === studentId);
       const obligations: ObligationLine[] = mine.map((a) => ({
-        label: a.asset,
-        detail: a.returned ? "Returned" : "Not returned",
-        cost: a.returned ? 0 : Number(a.replacementCost),
-        blocking: !a.returned,
+        label: a.asset || "Unknown Asset",
+        detail: (a.returned ?? false) ? "Returned" : "Not returned",
+        cost: (a.returned ?? false) ? 0 : Number(a.replacementCost ?? 0),
+        blocking: !(a.returned ?? false),
       }));
       const outstanding = obligations.filter((o) => o.blocking);
       const totalCost = outstanding.reduce((s, o) => s + o.cost, 0);
@@ -114,7 +114,7 @@ export function evaluateDepartment(
       };
     }
     case "Hostel": {
-      const mine = data.hostel.filter((h) => h.studentId === studentId);
+      const mine = (data.hostel ?? []).filter((h) => h.studentId === studentId);
       if (mine.length === 0) {
         return {
           department,
@@ -127,10 +127,10 @@ export function evaluateDepartment(
         };
       }
       const obligations: ObligationLine[] = mine.map((h) => ({
-        label: h.room,
-        detail: h.checkedOut ? "Checked out" : "Not checked out",
-        cost: Number(h.damageFee),
-        blocking: !h.checkedOut || Number(h.damageFee) > 0,
+        label: h.room || "Unknown Room",
+        detail: (h.checkedOut ?? false) ? "Checked out" : "Not checked out",
+        cost: Number(h.damageFee ?? 0),
+        blocking: !(h.checkedOut ?? false) || Number(h.damageFee ?? 0) > 0,
       }));
       const outstanding = obligations.filter((o) => o.blocking);
       const totalCost = obligations.reduce((s, o) => s + o.cost, 0);
@@ -158,7 +158,7 @@ export function evaluateDepartment(
         summary: "Manual review required for academic standing & records.",
       };
     case "Sports": {
-      const mine = data.sports.filter((s) => s.studentId === studentId);
+      const mine = (data.sports ?? []).filter((s) => s.studentId === studentId);
       if (mine.length === 0) {
         return {
           department,
@@ -171,10 +171,10 @@ export function evaluateDepartment(
         };
       }
       const obligations: ObligationLine[] = mine.map((s) => ({
-        label: s.equipment,
-        detail: s.returned ? "Returned" : "Not returned",
-        cost: s.returned ? 0 : Number(s.replacementCost),
-        blocking: !s.returned,
+        label: s.equipment || "Unknown Equipment",
+        detail: (s.returned ?? false) ? "Returned" : "Not returned",
+        cost: (s.returned ?? false) ? 0 : Number(s.replacementCost ?? 0),
+        blocking: !(s.returned ?? false),
       }));
       const outstanding = obligations.filter((o) => o.blocking);
       const totalCost = outstanding.reduce((acc, o) => acc + o.cost, 0);

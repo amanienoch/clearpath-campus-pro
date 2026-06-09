@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { LayoutDashboard, FileText, BadgeCheck, QrCode as QrIcon, Send, CheckCircle2, Clock, XCircle, Download, AlertTriangle, Sparkles, BookOpen, Wallet, Laptop, Home, Trophy, Activity } from "lucide-react";
+import { LayoutDashboard, FileText, BadgeCheck, QrCode as QrIcon, Send, CheckCircle2, Clock, XCircle, Download, AlertTriangle, Sparkles, BookOpen, Wallet, Laptop, Home, Trophy, Activity, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { evaluateDepartment, NGN } from "@/lib/eligibility";
@@ -69,7 +69,17 @@ function StudentPage() {
     [all, user],
   );
   const active = myRequests[0];
-  const latestApproved = useMemo(() => active && active.overallStatus === "approved" ? active : undefined, [active]);
+  const latestActiveCertificate = useMemo(() => {
+    const approved = myRequests.filter((r) => r.overallStatus === "approved");
+    return approved.find((req) => {
+      const hasNewer = approved.some(
+        (r) =>
+          r.requestType === req.requestType &&
+          new Date(r.submittedAt).getTime() > new Date(req.submittedAt).getTime()
+      );
+      return !hasNewer;
+    });
+  }, [myRequests]);
   const [tab, setTab] = useState("overview");
   const [selectedDept, setSelectedDept] = useState<Department | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<AuditEvent | null>(null);
@@ -124,7 +134,7 @@ function StudentPage() {
       <div className="space-y-8">
         <Hero user={user?.name ?? "Student"} active={active} />
 
-        {active?.overallStatus === "approved" && (
+        {latestActiveCertificate && (
           <button
             onClick={() => setTab("certificate")}
             className="w-full text-left bg-success/15 border border-success/30 hover:border-success/50 transition-all rounded-2xl p-4 flex items-center justify-between gap-3 text-success animate-fade-in cursor-pointer group shadow-sm"
@@ -151,9 +161,7 @@ function StudentPage() {
             <TabsTrigger value="overview" className="rounded-lg">Overview</TabsTrigger>
             <TabsTrigger value="submit" className="rounded-lg">New Request</TabsTrigger>
             <TabsTrigger value="history" className="rounded-lg">History</TabsTrigger>
-            {latestApproved && (
-              <TabsTrigger value="certificate" className="rounded-lg">Certificate</TabsTrigger>
-            )}
+            <TabsTrigger value="certificate" className="rounded-lg">Certificate</TabsTrigger>
           </TabsList>
           <TabsContent value="overview" className="mt-6">
             {active ? (
@@ -173,11 +181,13 @@ function StudentPage() {
           <TabsContent value="history" className="mt-6">
             <History list={myRequests} onSelectEvent={setSelectedEvent} />
           </TabsContent>
-          {latestApproved && (
-            <TabsContent value="certificate" className="mt-6">
-              <Certificate req={latestApproved} />
-            </TabsContent>
-          )}
+          <TabsContent value="certificate" className="mt-6">
+            {latestActiveCertificate ? (
+              <Certificate req={latestActiveCertificate} />
+            ) : (
+              <CertificateEmpty />
+            )}
+          </TabsContent>
         </Tabs>
       </div>
 
@@ -1027,6 +1037,7 @@ function History({ list, onSelectEvent }: { list: ClearanceRequest[]; onSelectEv
 }
 
 function Certificate({ req }: { req: ClearanceRequest }) {
+  if (!req) return <CertificateEmpty />;
   const verifyUrl = typeof window !== "undefined" ? `${window.location.origin}/verify?id=${req.clearanceId}` : `/verify?id=${req.clearanceId}`;
   const printIt = () => window.print();
   return (
@@ -1057,33 +1068,33 @@ function Certificate({ req }: { req: ClearanceRequest }) {
               </div>
               <div>
                 <div className="font-display font-bold text-2xl tracking-tight text-foreground">University E-Clearance</div>
-                <div className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">{REQUEST_TYPE_LABEL[req.requestType]}</div>
+                <div className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">{REQUEST_TYPE_LABEL[req.requestType] ?? "N/A"}</div>
               </div>
             </div>
             <div className="text-right">
               <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Clearance ID</div>
-              <div className="font-mono font-bold text-base text-foreground bg-muted/30 px-2.5 py-1 rounded-lg mt-0.5">{req.clearanceId}</div>
+              <div className="font-mono font-bold text-base text-foreground bg-muted/30 px-2.5 py-1 rounded-lg mt-0.5">{req.clearanceId ?? "N/A"}</div>
             </div>
           </div>
 
           <div className="text-center mt-12 space-y-4">
             <div className="text-xs uppercase tracking-[0.40em] text-primary font-extrabold">Official Certificate of Clearance</div>
-            <h1 className="font-display text-4xl sm:text-5xl font-black text-foreground tracking-tight leading-none pt-2">{req.studentName}</h1>
+            <h1 className="font-display text-4xl sm:text-5xl font-black text-foreground tracking-tight leading-none pt-2">{req.studentName ?? "N/A"}</h1>
             <p className="max-w-xl mx-auto text-xs sm:text-sm text-muted-foreground font-medium pt-2 leading-relaxed">
               has successfully fulfilled all academic, financial, administrative, and sports obligations across all required university departments and is hereby declared fully cleared.
             </p>
           </div>
 
           <div className="grid grid-cols-3 gap-4 mt-12 text-xs border-y border-border/40 py-5">
-            <Info label="Matric Number" value={req.matricNo} />
-            <Info label="Program" value={req.program} />
-            <Info label="Faculty" value={req.faculty} />
+            <Info label="Matric Number" value={req.matricNo ?? "N/A"} />
+            <Info label="Program" value={req.program ?? "N/A"} />
+            <Info label="Faculty" value={req.faculty ?? "N/A"} />
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-8">
-            {req.departments.map((d) => (
+            {(req.departments ?? []).map((d) => (
               <div key={d.department} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-success/5 text-success border border-success/20 text-xs font-semibold shadow-xs">
-                <CheckCircle2 className="size-3.5 text-success/80 shrink-0" /> {d.department}
+                <CheckCircle2 className="size-3.5 text-success/80 shrink-0" /> {d.department ?? "N/A"}
               </div>
             ))}
           </div>
@@ -1091,7 +1102,9 @@ function Certificate({ req }: { req: ClearanceRequest }) {
           <div className="mt-12 flex flex-col sm:flex-row items-end justify-between gap-6">
             <div className="text-xs text-muted-foreground font-medium">
               <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Date of Issuance</span>
-              <div className="font-semibold text-sm text-foreground mt-0.5">{new Date(req.submittedAt).toLocaleDateString(undefined, { dateStyle: "long" })}</div>
+              <div className="font-semibold text-sm text-foreground mt-0.5">
+                {req.submittedAt ? new Date(req.submittedAt).toLocaleDateString(undefined, { dateStyle: "long" }) : "N/A"}
+              </div>
               <div className="mt-8 pt-4 border-t border-foreground/30 w-56 text-center">
                 <div className="font-serif italic text-primary/75 text-base font-bold select-none mb-0.5">Registrar</div>
                 <div className="font-display font-bold text-[10px] tracking-widest uppercase text-muted-foreground">Office of the Registrar</div>
@@ -1110,6 +1123,18 @@ function Certificate({ req }: { req: ClearanceRequest }) {
         </div>
       </div>
     </motion.div>
+  );
+}
+
+function CertificateEmpty() {
+  return (
+    <div className="glass-strong rounded-3xl p-12 text-center select-none border border-border/20">
+      <BadgeCheck className="size-12 mx-auto text-muted-foreground/40 mb-3 animate-pulse text-primary" />
+      <h3 className="font-display font-semibold text-lg">No Active Certificate</h3>
+      <p className="text-muted-foreground text-sm mt-1 font-medium max-w-md mx-auto">
+        Your digital e-clearance certificate will be generated and displayed here once your clearance request is fully approved by all required departments.
+      </p>
+    </div>
   );
 }
 

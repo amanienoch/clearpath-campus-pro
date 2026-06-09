@@ -25,22 +25,23 @@ export const verifyClearanceCertificate = createServerFn({ method: "POST" })
 
     const { data: request, error } = await supabaseAdmin
       .from("clearance_requests")
-      .select("id, clearance_id, student_id, student_name, matric_no, program, faculty, submitted_at, overall_status")
+      .select("id, clearance_id, student_id, student_name, matric_no, program, faculty, submitted_at, overall_status, request_type")
       .eq("clearance_id", clearanceId)
       .maybeSingle();
 
     if (error) throw error;
     if (!request) return { found: false, clearanceId };
 
-    const { data: latest, error: latestError } = await supabaseAdmin
+    const { data: newerApproved, error: newerError } = await supabaseAdmin
       .from("clearance_requests")
       .select("id")
       .eq("student_id", request.student_id)
-      .order("submitted_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .eq("request_type", request.request_type)
+      .eq("overall_status", "approved")
+      .gt("submitted_at", request.submitted_at)
+      .limit(1);
 
-    if (latestError) throw latestError;
+    if (newerError) throw newerError;
 
     const { data: reviews, error: reviewsError } = await supabaseAdmin
       .from("dept_reviews")
@@ -60,7 +61,7 @@ export const verifyClearanceCertificate = createServerFn({ method: "POST" })
       submittedAt: request.submitted_at,
       overallStatus: request.overall_status,
       departments: (reviews ?? []).map((r) => r.department as Department),
-      isMostRecent: latest?.id === request.id,
+      isMostRecent: !newerApproved || newerApproved.length === 0,
     };
   });
 

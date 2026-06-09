@@ -35,6 +35,11 @@ import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { NGN } from "@/lib/eligibility";
 
 export const Route = createFileRoute("/admin")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    tab: (search.tab as string) || "overview",
+    search: (search.search as string) || "",
+    openNew: (search.openNew as string) || "",
+  }),
   head: () => ({ meta: [{ title: "Admin Dashboard — E-Clearance" }] }),
   component: AdminPage,
 });
@@ -49,8 +54,8 @@ function AdminPage() {
   const hostel = useStore((s) => s.hostel);
   const sports = useStore((s) => s.sports);
 
-  // Synchronize Tab state with URL query parameter
-  const [activeTab, setActiveTab] = useState("overview");
+  const { tab: activeTab = "overview", search: searchParam = "", openNew = "" } = Route.useSearch();
+  const navigate = Route.useNavigate();
 
   // Interactivity drill-down and filter states
   const [overviewStatusFilter, setOverviewStatusFilter] = useState<"all" | "approved" | "pending" | "rejected">("all");
@@ -61,18 +66,8 @@ function AdminPage() {
   const [obligationsSubTab, setObligationsSubTab] = useState("finance");
   const [obligationsSearch, setObligationsSearch] = useState("");
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tabParam = params.get("tab");
-    if (tabParam) {
-      setActiveTab(tabParam);
-    }
-  }, [window.location.search]);
-
   const handleTabChange = (val: string) => {
-    setActiveTab(val);
-    const newUrl = window.location.pathname + "?tab=" + val;
-    window.history.replaceState(null, "", newUrl);
+    navigate({ search: { tab: val } });
   };
 
   const stats = useMemo(() => ({
@@ -171,12 +166,10 @@ function AdminPage() {
   // Quick Action search filter on overview tab
   const [overviewSearch, setOverviewSearch] = useState("");
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const searchParam = params.get("search");
-    if (searchParam && params.get("tab") === "overview") {
+    if (activeTab === "overview" && searchParam) {
       setOverviewSearch(searchParam);
     }
-  }, [window.location.search]);
+  }, [activeTab, searchParam]);
 
   const filteredRequests = useMemo(() => {
     let list = requests;
@@ -332,8 +325,7 @@ function AdminPage() {
                       Search: <span className="font-bold">&ldquo;{overviewSearch}&rdquo;</span>
                       <button onClick={() => {
                         setOverviewSearch("");
-                        const newUrl = window.location.pathname + "?tab=overview";
-                        window.history.replaceState(null, "", newUrl);
+                        navigate({ search: { tab: "overview" } });
                       }} className="hover:text-foreground ml-1 font-bold font-mono">×</button>
                     </span>
                   )}
@@ -682,24 +674,24 @@ function UsersTab({ users, search, setSearch, onSelectStudent }: { users: User[]
     }
   };
 
+  const { tab = "overview", search: searchParam = "", openNew = "" } = Route.useSearch();
+  const navigate = Route.useNavigate();
+
   // Pre-fill search filter from URL query redirects
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("tab") === "users") {
-      const searchParam = params.get("search");
+    if (tab === "users") {
       if (searchParam) {
         setSearch(searchParam);
       }
       
-      if (params.get("openNew") === "true") {
+      if (openNew === "true") {
         setEdit({ id: crypto.randomUUID(), name: "", email: "", role: "student", password: "" });
         setOpen(true);
-        // Clear param
-        const newUrl = window.location.pathname + "?tab=users";
-        window.history.replaceState(null, "", newUrl);
+        // Clear param reactively
+        navigate({ search: { tab: "users" } });
       }
     }
-  }, [window.location.search]);
+  }, [tab, searchParam, openNew, navigate, setSearch]);
 
   const filteredUsers = useMemo(() => {
     if (!search.trim()) return users;
@@ -939,6 +931,14 @@ function UserDialog({ open, onClose, user }: { open: boolean; onClose: () => voi
 }
 
 function StudentSelect({ value, onChange, students }: { value: string; onChange: (v: string) => void; students: User[] }) {
+  const hasValue = students.some((s) => s.id === value);
+  const displayStudents = useMemo(() => {
+    if (value && !hasValue) {
+      return [...students, { id: value, name: "Deleted Student (Stale Reference)", email: "" } as User];
+    }
+    return students;
+  }, [students, value, hasValue]);
+
   return (
     <div className="space-y-1.5">
       <Label>Student</Label>
@@ -947,9 +947,9 @@ function StudentSelect({ value, onChange, students }: { value: string; onChange:
           <SelectValue placeholder="Select student" />
         </SelectTrigger>
         <SelectContent>
-          {students.map((s) => (
+          {displayStudents.map((s) => (
             <SelectItem key={s.id} value={s.id}>
-              {s.name} ({s.matricNo || "N/A"})
+              {s.name} {s.matricNo ? `(${s.matricNo})` : ""}
             </SelectItem>
           ))}
         </SelectContent>
@@ -997,23 +997,23 @@ function ObligationsTab({
   const [sportsOpen, setSportsOpen] = useState(false);
   const [sportsEdit, setSportsEdit] = useState<{ id?: string; studentId: string; equipment: string; returned: boolean; replacementCost: number } | null>(null);
 
+  const { tab = "overview", search: searchParam = "", openNew = "" } = Route.useSearch();
+  const navigate = Route.useNavigate();
+
   // Sync obligations tab state with Command Palette redirects
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("tab") === "obligations") {
-      const searchParam = params.get("search");
+    if (tab === "obligations") {
       if (searchParam) {
         setSearch(searchParam);
       }
-      if (params.get("openNew") === "true") {
+      if (openNew === "true") {
         setFeeEdit({ studentId: allStudents[0]?.id || "", item: "", amountDue: 0 });
         setFeeOpen(true);
-        // Clear parameter
-        const newUrl = window.location.pathname + "?tab=obligations";
-        window.history.replaceState(null, "", newUrl);
+        // Clear parameter reactively
+        navigate({ search: { tab: "obligations" } });
       }
     }
-  }, [window.location.search, allStudents]);
+  }, [tab, searchParam, openNew, allStudents, navigate, setSearch]);
 
   // Filter obligation list values dynamically
   const filteredFees = useMemo(() => {
@@ -1527,7 +1527,7 @@ function FeeDialog({ open, onClose, item, students }: { open: boolean; onClose: 
   if (!draft) return null;
   const save = async () => {
     if (!draft.studentId) return toast.error("Please select a student");
-    if (!draft.item.trim()) return toast.error("Please enter a description");
+    if (!draft.item || !draft.item.trim()) return toast.error("Please enter a description");
     try {
       await store.upsertFeeBalance(draft);
       toast.success("Fee record saved");
@@ -1557,7 +1557,7 @@ function LibraryDialog({ open, onClose, item, students }: { open: boolean; onClo
   if (!draft) return null;
   const save = async () => {
     if (!draft.studentId) return toast.error("Please select a student");
-    if (!draft.bookTitle.trim()) return toast.error("Please enter a book title");
+    if (!draft.bookTitle || !draft.bookTitle.trim()) return toast.error("Please enter a book title");
     if (!draft.dueDate) return toast.error("Please select a due date");
     try {
       await store.upsertLibraryLoan(draft);
@@ -1590,7 +1590,7 @@ function IctDialog({ open, onClose, item, students }: { open: boolean; onClose: 
   if (!draft) return null;
   const save = async () => {
     if (!draft.studentId) return toast.error("Please select a student");
-    if (!draft.asset.trim()) return toast.error("Please enter an asset name");
+    if (!draft.asset || !draft.asset.trim()) return toast.error("Please enter an asset name");
     try {
       await store.upsertIctAsset(draft);
       toast.success("Asset assignment saved");
@@ -1621,7 +1621,7 @@ function HostelDialog({ open, onClose, item, students }: { open: boolean; onClos
   if (!draft) return null;
   const save = async () => {
     if (!draft.studentId) return toast.error("Please select a student");
-    if (!draft.room.trim()) return toast.error("Please enter room details");
+    if (!draft.room || !draft.room.trim()) return toast.error("Please enter room details");
     try {
       await store.upsertHostelAssignment(draft);
       toast.success("Hostel record saved");
@@ -1652,7 +1652,7 @@ function SportsDialog({ open, onClose, item, students }: { open: boolean; onClos
   if (!draft) return null;
   const save = async () => {
     if (!draft.studentId) return toast.error("Please select a student");
-    if (!draft.equipment.trim()) return toast.error("Please enter equipment details");
+    if (!draft.equipment || !draft.equipment.trim()) return toast.error("Please enter equipment details");
     try {
       await store.upsertSportsLoan(draft);
       toast.success("Sports record saved");
@@ -1690,8 +1690,20 @@ function RequestDetailDialog({ open, onClose, req }: { open: boolean; onClose: (
   if (!req) return null;
   
   const users = useStore((s) => s.users);
+  const requests = useStore((s) => s.requests);
   const student = users.find((u) => u.id === req.studentId);
   const admissionNo = student?.admissionNumber ?? "—";
+
+  const isSuperseded = useMemo(() => {
+    if (req.overallStatus !== "approved") return false;
+    return requests.some(
+      (r) =>
+        r.studentId === req.studentId &&
+        r.requestType === req.requestType &&
+        r.overallStatus === "approved" &&
+        new Date(r.submittedAt).getTime() > new Date(req.submittedAt).getTime()
+    );
+  }, [req, requests]);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -1699,37 +1711,37 @@ function RequestDetailDialog({ open, onClose, req }: { open: boolean; onClose: (
         <DialogHeader>
           <DialogTitle className="font-display text-2xl flex items-center justify-between gap-4 flex-wrap">
             <span>Clearance Request Details</span>
-            <span className="font-mono text-sm text-muted-foreground px-2 py-0.5 bg-muted rounded-lg font-bold">{req.clearanceId}</span>
+            <span className="font-mono text-sm text-muted-foreground px-2 py-0.5 bg-muted rounded-lg font-bold">{req.clearanceId ?? "N/A"}</span>
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-6">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4 rounded-xl bg-muted/40 border">
-            <Info label="Student Name" value={req.studentName} />
-            <Info label="Matric Number" value={req.matricNo} />
+            <Info label="Student Name" value={req.studentName ?? "N/A"} />
+            <Info label="Matric Number" value={req.matricNo ?? "N/A"} />
             <Info label="Admission Number" value={admissionNo} />
-            <Info label="Program" value={req.program} />
-            <Info label="Faculty" value={req.faculty} />
-            <Info label="Level" value={req.level} />
-            <Info label="Email" value={req.email} />
-            <Info label="Clearance Type" value={REQUEST_TYPE_LABEL[req.requestType]} />
+            <Info label="Program" value={req.program ?? "N/A"} />
+            <Info label="Faculty" value={req.faculty ?? "N/A"} />
+            <Info label="Level" value={req.level ?? "N/A"} />
+            <Info label="Email" value={req.email ?? "N/A"} />
+            <Info label="Clearance Type" value={REQUEST_TYPE_LABEL[req.requestType] ?? "N/A"} />
             <div className="flex flex-col">
               <span className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-0.5">Overall Status</span>
-              <StatusBadge status={req.overallStatus} />
+              <StatusBadge status={req.overallStatus ?? "pending"} />
             </div>
           </div>
 
           <div>
             <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-1">Reason for request</div>
-            <div className="text-sm border p-3 rounded-lg bg-card/50 italic">&ldquo;{req.reason}&rdquo;</div>
+            <div className="text-sm border p-3 rounded-lg bg-card/50 italic">&ldquo;{req.reason ?? "N/A"}&rdquo;</div>
           </div>
 
           <div className="space-y-3">
             <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Department reviews</div>
             <div className="space-y-2">
-              {req.departments.map((d) => (
+              {(req.departments ?? []).map((d) => (
                 <div key={d.department} className="flex items-start justify-between gap-4 p-3 rounded-xl border bg-card/30">
                   <div className="min-w-0 flex-1">
-                    <div className="font-bold text-sm">{d.department} Department</div>
+                    <div className="font-bold text-sm">{d.department ?? "N/A"} Department</div>
                     {d.reviewedBy && (
                       <div className="text-xs text-muted-foreground font-medium mt-0.5">
                         Reviewed by <span className="font-semibold text-foreground">{d.reviewedBy}</span> on {d.reviewedAt ? new Date(d.reviewedAt).toLocaleString() : "N/A"}
@@ -1740,19 +1752,28 @@ function RequestDetailDialog({ open, onClose, req }: { open: boolean; onClose: (
                       {d.remarks || "No remarks provided."}
                     </div>
                   </div>
-                  <StatusBadge status={d.status} />
+                  <StatusBadge status={d.status ?? "pending"} />
                 </div>
               ))}
             </div>
           </div>
 
           {req.overallStatus === "approved" && (
-            <div className="p-4 rounded-xl border border-success/30 bg-success/5 flex items-center justify-between gap-4 flex-wrap">
+            <div className={cn(
+              "p-4 rounded-xl border flex items-center justify-between gap-4 flex-wrap",
+              isSuperseded ? "border-warning/30 bg-warning/5 text-warning" : "border-success/30 bg-success/5 text-success"
+            )}>
               <div className="space-y-1">
-                <div className="font-bold text-sm text-success">Certificate Issued & Valid</div>
-                <div className="text-xs text-muted-foreground">The clearance certificate is authentic and verifiable online.</div>
+                <div className={cn("font-bold text-sm", isSuperseded ? "text-warning" : "text-success")}>
+                  {isSuperseded ? "Certificate Superseded (Historical)" : "Certificate Issued & Valid"}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {isSuperseded
+                    ? "This certificate has been superseded by a newer approved clearance request of this type."
+                    : "The clearance certificate is authentic and verifiable online."}
+                </div>
               </div>
-              <Button asChild className="gradient-bg text-primary-foreground shadow-elegant">
+              <Button asChild className={cn("gradient-bg text-primary-foreground shadow-elegant", isSuperseded && "bg-warning text-warning-foreground hover:bg-warning/95")}>
                 <Link to="/verify" search={{ id: req.clearanceId }} target="_blank">
                   Verify Certificate <ExternalLink className="size-4 ml-1.5" />
                 </Link>
@@ -1777,11 +1798,11 @@ function StudentDetailDialog({ open, onClose, student }: { open: boolean; onClos
 
   const studentRequests = useMemo(() => requests.filter((r) => r.studentId === student.id), [requests, student.id]);
 
-  const studentFees = useMemo(() => fees.filter((f) => f.studentId === student.id && Number(f.amountDue) > 0), [fees, student.id]);
-  const studentLoans = useMemo(() => loans.filter((l) => l.studentId === student.id && !l.returned), [loans, student.id]);
-  const studentAssets = useMemo(() => assets.filter((a) => a.studentId === student.id && !a.returned), [assets, student.id]);
-  const studentHostel = useMemo(() => hostel.filter((h) => h.studentId === student.id && (!h.checkedOut || Number(h.damageFee) > 0)), [hostel, student.id]);
-  const studentSports = useMemo(() => sports.filter((s) => s.studentId === student.id && !s.returned), [sports, student.id]);
+  const studentFees = useMemo(() => fees.filter((f) => f.studentId === student.id && Number(f.amountDue ?? 0) > 0), [fees, student.id]);
+  const studentLoans = useMemo(() => loans.filter((l) => l.studentId === student.id && !(l.returned ?? false)), [loans, student.id]);
+  const studentAssets = useMemo(() => assets.filter((a) => a.studentId === student.id && !(a.returned ?? false)), [assets, student.id]);
+  const studentHostel = useMemo(() => hostel.filter((h) => h.studentId === student.id && (!(h.checkedOut ?? false) || Number(h.damageFee ?? 0) > 0)), [hostel, student.id]);
+  const studentSports = useMemo(() => sports.filter((s) => s.studentId === student.id && !(s.returned ?? false)), [sports, student.id]);
 
   const totalOutstanding = studentFees.length + studentLoans.length + studentAssets.length + studentHostel.length + studentSports.length;
 
@@ -1799,13 +1820,13 @@ function StudentDetailDialog({ open, onClose, student }: { open: boolean; onClos
 
         <div className="space-y-6">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4 rounded-xl bg-muted/40 border">
-            <Info label="Full Name" value={student.name} />
+            <Info label="Full Name" value={student.name ?? "Unknown"} />
             <Info label="Matric Number" value={student.matricNo || "—"} />
             <Info label="Admission Number" value={student.admissionNumber || "—"} />
             <Info label="Program" value={student.program || "—"} />
             <Info label="Faculty" value={student.faculty || "—"} />
             <Info label="Level" value={student.level || "—"} />
-            <Info label="Email" value={student.email} />
+            <Info label="Email" value={student.email ?? "—"} />
           </div>
 
           <div className="space-y-3">
@@ -1822,45 +1843,45 @@ function StudentDetailDialog({ open, onClose, student }: { open: boolean; onClos
                   <div key={f.id} className="flex justify-between items-center text-xs p-3 rounded-lg border border-destructive/20 bg-destructive/5 font-semibold">
                     <div>
                       <div className="font-bold text-destructive">Finance Dept · Fee Balance</div>
-                      <div className="text-muted-foreground font-medium mt-0.5">{f.item}</div>
+                      <div className="text-muted-foreground font-medium mt-0.5">{f.item ?? "N/A"}</div>
                     </div>
-                    <div className="font-mono font-bold text-destructive text-sm">{NGN(f.amountDue)}</div>
+                    <div className="font-mono font-bold text-destructive text-sm">{NGN(f.amountDue ?? 0)}</div>
                   </div>
                 ))}
                 {studentLoans.map((l) => (
                   <div key={l.id} className="flex justify-between items-center text-xs p-3 rounded-lg border border-destructive/20 bg-destructive/5 font-semibold">
                     <div>
                       <div className="font-bold text-destructive">Library Dept · Overdue Book</div>
-                      <div className="text-muted-foreground font-medium mt-0.5">{l.bookTitle} (Due {new Date(l.dueDate).toLocaleDateString()})</div>
+                      <div className="text-muted-foreground font-medium mt-0.5">{l.bookTitle ?? "N/A"} (Due {l.dueDate ? new Date(l.dueDate).toLocaleDateString() : "N/A"})</div>
                     </div>
-                    {l.fineAmount > 0 && <div className="font-mono font-bold text-destructive text-sm">{NGN(l.fineAmount)}</div>}
+                    {(l.fineAmount ?? 0) > 0 && <div className="font-mono font-bold text-destructive text-sm">{NGN(l.fineAmount ?? 0)}</div>}
                   </div>
                 ))}
                 {studentAssets.map((a) => (
                   <div key={a.id} className="flex justify-between items-center text-xs p-3 rounded-lg border border-destructive/20 bg-destructive/5 font-semibold">
                     <div>
                       <div className="font-bold text-destructive">ICT Dept · Outstanding Asset</div>
-                      <div className="text-muted-foreground font-medium mt-0.5">{a.asset}</div>
+                      <div className="text-muted-foreground font-medium mt-0.5">{a.asset ?? "N/A"}</div>
                     </div>
-                    {a.replacementCost > 0 && <div className="font-mono font-bold text-destructive text-sm">{NGN(a.replacementCost)} liability</div>}
+                    {(a.replacementCost ?? 0) > 0 && <div className="font-mono font-bold text-destructive text-sm">{NGN(a.replacementCost ?? 0)} liability</div>}
                   </div>
                 ))}
                 {studentHostel.map((h) => (
                   <div key={h.id} className="flex justify-between items-center text-xs p-3 rounded-lg border border-destructive/20 bg-destructive/5 font-semibold">
                     <div>
                       <div className="font-bold text-destructive">Hostel Dept · Room Assignment</div>
-                      <div className="text-muted-foreground font-medium mt-0.5">{h.room} {!h.checkedOut && "· Pending checkout"}</div>
+                      <div className="text-muted-foreground font-medium mt-0.5">{h.room ?? "N/A"} {!(h.checkedOut ?? false) && "· Pending checkout"}</div>
                     </div>
-                    {h.damageFee > 0 && <div className="font-mono font-bold text-destructive text-sm">{NGN(h.damageFee)} damage charge</div>}
+                    {(h.damageFee ?? 0) > 0 && <div className="font-mono font-bold text-destructive text-sm">{NGN(h.damageFee ?? 0)} damage charge</div>}
                   </div>
                 ))}
                 {studentSports.map((s) => (
                   <div key={s.id} className="flex justify-between items-center text-xs p-3 rounded-lg border border-destructive/20 bg-destructive/5 font-semibold">
                     <div>
                       <div className="font-bold text-destructive">Sports Dept · Loaned Kit/Equipment</div>
-                      <div className="text-muted-foreground font-medium mt-0.5">{s.equipment}</div>
+                      <div className="text-muted-foreground font-medium mt-0.5">{s.equipment ?? "N/A"}</div>
                     </div>
-                    {s.replacementCost > 0 && <div className="font-mono font-bold text-destructive text-sm">{NGN(s.replacementCost)} liability</div>}
+                    {(s.replacementCost ?? 0) > 0 && <div className="font-mono font-bold text-destructive text-sm">{NGN(s.replacementCost ?? 0)} liability</div>}
                   </div>
                 ))}
               </div>
@@ -1882,10 +1903,10 @@ function StudentDetailDialog({ open, onClose, student }: { open: boolean; onClos
                 {studentRequests.map((r) => (
                   <div key={r.id} className="flex justify-between items-center p-3 rounded-lg border bg-card font-semibold text-xs">
                     <div>
-                      <div className="font-bold text-foreground">{REQUEST_TYPE_LABEL[r.requestType]}</div>
-                      <div className="text-muted-foreground font-mono font-medium mt-0.5">{r.clearanceId} &middot; {new Date(r.submittedAt).toLocaleDateString()}</div>
+                      <div className="font-bold text-foreground">{REQUEST_TYPE_LABEL[r.requestType] ?? "N/A"}</div>
+                      <div className="text-muted-foreground font-mono font-medium mt-0.5">{r.clearanceId ?? "N/A"} &middot; {r.submittedAt ? new Date(r.submittedAt).toLocaleDateString() : "N/A"}</div>
                     </div>
-                    <StatusBadge status={r.overallStatus} />
+                    <StatusBadge status={r.overallStatus ?? "pending"} />
                   </div>
                 ))}
               </div>
