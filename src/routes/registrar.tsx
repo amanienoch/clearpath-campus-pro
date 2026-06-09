@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { AppShell } from "@/components/AppShell";
 import { cn } from "@/lib/utils";
 import { useAuthUser, useStore, store } from "@/lib/store";
-import { ClearanceRequest, ClearanceStatus, Department, REQUEST_TYPE_LABEL, User } from "@/lib/types";
+import { ClearanceRequest, ClearanceStatus, Department, REQUEST_TYPE_LABEL, User, DEPARTMENTS } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
