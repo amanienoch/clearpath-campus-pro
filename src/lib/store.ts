@@ -40,6 +40,99 @@ function setState(updater: (s: State) => State) {
   notify();
 }
 
+function parseActivityRow(
+  a: Record<string, unknown>,
+  requests: ClearanceRequest[],
+  users: User[]
+): ActivityItem {
+  const id = a.id as string;
+  const timestamp = a.at as string;
+  const actor = a.actor as string;
+  const action = a.action as string;
+  const target = (a.target as string) ?? undefined;
+
+  let actorRole = "system";
+  let department: string | undefined = undefined;
+  let status: "approved" | "rejected" | "pending" | "info" = "info";
+  let clearanceId: string | undefined = undefined;
+
+  const lowerAction = action.toLowerCase();
+  const lowerActor = actor.toLowerCase();
+
+  // 1. Resolve clearanceId and match against requests
+  let matchedReq: ClearanceRequest | undefined;
+  if (target) {
+    if (/^ECL-\d{4}-\d{4}$/.test(target)) {
+      clearanceId = target;
+      matchedReq = requests.find(r => r.clearanceId === target);
+    } else {
+      matchedReq = requests.find(r => r.id === target || r.clearanceId === target);
+      if (matchedReq) {
+        clearanceId = matchedReq.clearanceId;
+      }
+    }
+  }
+
+  if (!clearanceId && lowerAction.includes("ecl-")) {
+    const match = action.match(/ECL-\d{4}-\d{4}/i);
+    if (match) {
+      clearanceId = match[0].toUpperCase();
+      matchedReq = requests.find(r => r.clearanceId === clearanceId);
+    }
+  }
+
+  // 2. Determine status
+  if (lowerAction.includes("approved") || lowerAction.includes("cleared")) {
+    status = "approved";
+  } else if (lowerAction.includes("rejected") || lowerAction.includes("denied")) {
+    status = "rejected";
+  } else if (lowerAction.includes("submitted") || lowerAction.includes("initialized") || lowerAction.includes("pending")) {
+    status = "pending";
+  } else {
+    status = "info";
+  }
+
+  // 3. Resolve actor role & department
+  const matchedUser = users.find(
+    u => u.name.toLowerCase() === lowerActor || u.email.toLowerCase() === lowerActor
+  );
+  if (matchedUser) {
+    actorRole = matchedUser.role;
+    department = matchedUser.department;
+  } else {
+    if (lowerActor === "admin" || lowerActor === "administrator" || lowerAction.includes("obligation") || lowerAction.includes("user")) {
+      actorRole = "admin";
+    } else if (lowerActor.includes("registrar") || lowerAction.includes("registrar")) {
+      actorRole = "registrar";
+      department = "Registrar";
+    } else if (
+      ["finance", "library", "ict", "hostel", "sports"].some(deptKey => 
+        lowerActor.includes(deptKey.toLowerCase()) || lowerAction.includes(deptKey.toLowerCase())
+      )
+    ) {
+      actorRole = "department";
+      const depts: string[] = ["Finance", "Library", "ICT", "Hostel", "Sports"];
+      department = depts.find(deptKey => 
+        lowerActor.includes(deptKey.toLowerCase()) || lowerAction.includes(deptKey.toLowerCase())
+      );
+    } else if (matchedReq && matchedReq.studentName.toLowerCase() === lowerActor) {
+      actorRole = "student";
+    }
+  }
+
+  return {
+    id,
+    timestamp,
+    actor,
+    actorRole,
+    department,
+    action,
+    target,
+    clearanceId,
+    status,
+  };
+}
+
 function rowsToRequests(
   reqs: Array<Record<string, unknown>>,
   reviews: Array<Record<string, unknown>>,
@@ -191,11 +284,9 @@ async function loadAll() {
     (_revsRes.data ?? []) as Array<Record<string, unknown>>,
   );
 
-  const activity: ActivityItem[] = (_actsRes.data ?? []).map((a) => ({
-    id: a.id as string, at: a.at as string,
-    actor: a.actor as string, action: a.action as string,
-    target: (a.target as string) ?? undefined,
-  }));
+  const activity: ActivityItem[] = (_actsRes.data ?? []).map((a) =>
+    parseActivityRow(a as Record<string, unknown>, requests, users)
+  );
 
   let loans: LibraryLoan[];
   let fees: FeeBalance[];
@@ -354,6 +445,19 @@ export const store = {
       .eq("request_id", requestId).eq("department", department);
     if (error) throw error;
     await logActivity(reviewer, `${status} ${department} clearance`, requestId);
+
+    // If registrar approves final clearance, log certificate generation if all others are approved
+    if (department === "Registrar" && status === "approved") {
+      const req = state.requests.find((r) => r.id === requestId);
+      if (req) {
+        const allOtherCleared = req.departments.every(
+          (d) => d.department === "Registrar" || d.status === "approved",
+        );
+        if (allOtherCleared) {
+          await logActivity("Office of the Registrar", "generated certificate", req.clearanceId);
+        }
+      }
+    }
     await loadAll();
   },
 
@@ -381,6 +485,10 @@ export const store = {
     await loadAll();
   },
 
+  logActivity: async (actor: string, action: string, target?: string) => {
+    await logActivity(actor, action, target);
+  },
+
   upsertFeeBalance: async (item: { id?: string; studentId: string; item: string; amountDue: number }) => {
     const { error } = await supabase.from("fee_balances").upsert({
       id: item.id || undefined,
@@ -389,12 +497,24 @@ export const store = {
       amount_due: item.amountDue,
     });
     if (error) throw error;
+    
+    const isUpdate = !!item.id;
+    const student = state.users.find((u) => u.id === item.studentId);
+    const studentName = student?.name ?? item.studentId;
+    const actor = auth.user?.name ?? "Admin";
+    await logActivity(actor, `${isUpdate ? "updated" : "added"} fee balance obligation for ${studentName}`, item.studentId);
     await loadAll();
   },
 
   deleteFeeBalance: async (id: string) => {
+    const existing = state.fees.find((f) => f.id === id);
     const { error } = await supabase.from("fee_balances").delete().eq("id", id);
     if (error) throw error;
+
+    const student = state.users.find((u) => u.id === existing?.studentId);
+    const studentName = student?.name ?? existing?.studentId ?? "Student";
+    const actor = auth.user?.name ?? "Admin";
+    await logActivity(actor, `removed fee balance obligation for ${studentName}`, existing?.studentId);
     await loadAll();
   },
 
@@ -408,12 +528,24 @@ export const store = {
       fine_amount: item.fineAmount,
     });
     if (error) throw error;
+
+    const isUpdate = !!item.id;
+    const student = state.users.find((u) => u.id === item.studentId);
+    const studentName = student?.name ?? item.studentId;
+    const actor = auth.user?.name ?? "Admin";
+    await logActivity(actor, `${isUpdate ? "updated" : "added"} library loan obligation for ${studentName}`, item.studentId);
     await loadAll();
   },
 
   deleteLibraryLoan: async (id: string) => {
+    const existing = state.loans.find((l) => l.id === id);
     const { error } = await supabase.from("library_loans").delete().eq("id", id);
     if (error) throw error;
+
+    const student = state.users.find((u) => u.id === existing?.studentId);
+    const studentName = student?.name ?? existing?.studentId ?? "Student";
+    const actor = auth.user?.name ?? "Admin";
+    await logActivity(actor, `removed library loan obligation for ${studentName}`, existing?.studentId);
     await loadAll();
   },
 
@@ -426,12 +558,24 @@ export const store = {
       replacement_cost: item.replacementCost,
     });
     if (error) throw error;
+
+    const isUpdate = !!item.id;
+    const student = state.users.find((u) => u.id === item.studentId);
+    const studentName = student?.name ?? item.studentId;
+    const actor = auth.user?.name ?? "Admin";
+    await logActivity(actor, `${isUpdate ? "updated" : "added"} ICT asset obligation for ${studentName}`, item.studentId);
     await loadAll();
   },
 
   deleteIctAsset: async (id: string) => {
+    const existing = state.assets.find((a) => a.id === id);
     const { error } = await supabase.from("ict_assets").delete().eq("id", id);
     if (error) throw error;
+
+    const student = state.users.find((u) => u.id === existing?.studentId);
+    const studentName = student?.name ?? existing?.studentId ?? "Student";
+    const actor = auth.user?.name ?? "Admin";
+    await logActivity(actor, `removed ICT asset obligation for ${studentName}`, existing?.studentId);
     await loadAll();
   },
 
@@ -444,12 +588,24 @@ export const store = {
       damage_fee: item.damageFee,
     });
     if (error) throw error;
+
+    const isUpdate = !!item.id;
+    const student = state.users.find((u) => u.id === item.studentId);
+    const studentName = student?.name ?? item.studentId;
+    const actor = auth.user?.name ?? "Admin";
+    await logActivity(actor, `${isUpdate ? "updated" : "added"} hostel assignment obligation for ${studentName}`, item.studentId);
     await loadAll();
   },
 
   deleteHostelAssignment: async (id: string) => {
+    const existing = state.hostel.find((h) => h.id === id);
     const { error } = await supabase.from("hostel_assignments").delete().eq("id", id);
     if (error) throw error;
+
+    const student = state.users.find((u) => u.id === existing?.studentId);
+    const studentName = student?.name ?? existing?.studentId ?? "Student";
+    const actor = auth.user?.name ?? "Admin";
+    await logActivity(actor, `removed hostel assignment obligation for ${studentName}`, existing?.studentId);
     await loadAll();
   },
 
@@ -462,12 +618,24 @@ export const store = {
       replacement_cost: item.replacementCost,
     });
     if (error) throw error;
+
+    const isUpdate = !!item.id;
+    const student = state.users.find((u) => u.id === item.studentId);
+    const studentName = student?.name ?? item.studentId;
+    const actor = auth.user?.name ?? "Admin";
+    await logActivity(actor, `${isUpdate ? "updated" : "added"} sports loan obligation for ${studentName}`, item.studentId);
     await loadAll();
   },
 
   deleteSportsLoan: async (id: string) => {
+    const existing = state.sports.find((s) => s.id === id);
     const { error } = await supabase.from("sports_loans").delete().eq("id", id);
     if (error) throw error;
+
+    const student = state.users.find((u) => u.id === existing?.studentId);
+    const studentName = student?.name ?? existing?.studentId ?? "Student";
+    const actor = auth.user?.name ?? "Admin";
+    await logActivity(actor, `removed sports loan obligation for ${studentName}`, existing?.studentId);
     await loadAll();
   },
 };

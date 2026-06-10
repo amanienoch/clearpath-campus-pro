@@ -1039,7 +1039,14 @@ function History({ list, onSelectEvent }: { list: ClearanceRequest[]; onSelectEv
 function Certificate({ req }: { req: ClearanceRequest }) {
   if (!req) return <CertificateEmpty />;
   const verifyUrl = typeof window !== "undefined" ? `${window.location.origin}/verify?id=${req.clearanceId}` : `/verify?id=${req.clearanceId}`;
-  const printIt = () => window.print();
+  const printIt = async () => {
+    try {
+      await store.logActivity(req.studentName, "downloaded certificate", req.clearanceId);
+    } catch (err) {
+      console.error("Failed to log certificate download activity", err);
+    }
+    window.print();
+  };
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}

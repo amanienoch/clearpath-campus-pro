@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { useStore, store } from "@/lib/store";
 import { DEPARTMENTS, Role, User, ClearanceRequest, REQUEST_TYPE_LABEL } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
+import { UnifiedActivityFeed } from "@/components/UnifiedActivityFeed";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -591,29 +592,9 @@ function AdminPage() {
         <TabsContent value="activity">
           <div className="glass-strong rounded-2xl p-6 border border-border/40">
             <h3 className="font-display font-semibold text-lg mb-4 flex items-center gap-2">
-              <Activity className="size-5 text-primary animate-pulse" /> Activity feed
+              <Activity className="size-5 text-primary animate-pulse" /> Activity Feed
             </h3>
-            {activity.length === 0 ? (
-              <div className="py-12 text-center text-muted-foreground select-none">
-                <Inbox className="size-10 mx-auto text-muted-foreground/45 mb-3" />
-                <div className="font-semibold text-sm">You're all caught up.</div>
-                <div className="text-xs mt-1">No system activity logged yet.</div>
-              </div>
-            ) : (
-              <ol className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
-                {activity.map((a) => (
-                  <li key={a.id} className="flex items-start gap-3 p-3 rounded-xl border bg-card/50 hover:bg-card/75 transition-colors">
-                    <div className="size-9 rounded-full gradient-bg grid place-items-center text-primary-foreground text-xs font-bold shrink-0 shadow-sm">
-                      {a.actor.split(" ").map((p) => p[0]).slice(0, 2).join("")}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium"><span className="font-bold text-foreground">{a.actor}</span> {a.action} {a.target && <span className="font-mono text-xs text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded ml-1 font-bold">ID: {a.target.slice(0,8)}</span>}</div>
-                      <div className="text-xs text-muted-foreground mt-1 font-medium">{new Date(a.at).toLocaleString()}</div>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            )}
+            <UnifiedActivityFeed items={activity} />
           </div>
         </TabsContent>
       </Tabs>

@@ -67,10 +67,14 @@ export interface User {
 
 export interface ActivityItem {
   id: string;
-  at: string;
+  timestamp: string; // db 'at'
   actor: string;
+  actorRole: string;
+  department?: string;
   action: string;
   target?: string;
+  clearanceId?: string;
+  status?: "approved" | "rejected" | "pending" | "info";
 }
 
 // --- Obligations ---

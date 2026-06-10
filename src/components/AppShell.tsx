@@ -3,10 +3,11 @@ import { useEffect, useState, useMemo, type ReactNode } from "react";
 import { authStore, useAuthHydrated, useAuthUser, useStore, usePasswordChangeRequired } from "@/lib/store";
 import { Role } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, LogOut, Menu, Moon, ShieldCheck, Sun, X, PanelLeftClose, PanelLeftOpen, Bell, Search, Settings, Inbox } from "lucide-react";
+import { GraduationCap, LogOut, Menu, Moon, ShieldCheck, Sun, X, PanelLeftClose, PanelLeftOpen, Bell, Search, Settings, Inbox, CheckCircle2, XCircle, Clock, BadgeCheck, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 
 interface NavItem { to: string; label: string; icon: ReactNode; }
 
@@ -23,10 +24,15 @@ function formatRelativeTime(dateStr: string) {
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 1) return "Just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
   const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? "s" : ""} ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+  
   return date.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
@@ -74,6 +80,7 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [readIds, setReadIds] = useState<string[]>([]);
+  const [notifFilter, setNotifFilter] = useState<"all" | "unread" | "approvals" | "rejections" | "certificates" | "system">("all");
 
   useEffect(() => {
     const saved = localStorage.getItem("clearance-read-ids");
@@ -87,13 +94,165 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
   }, []);
 
   const activity = useStore((s) => s.activity);
-  const unreadCount = activity.filter((a) => !readIds.includes(a.id)).length;
+  const requests = useStore((s) => s.requests);
+
+  // Derive notifications list based on the user's role
+  const userNotifications = useMemo(() => {
+    if (!user) return [];
+    
+    // Sort chronologically descending
+    const sorted = [...activity].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    return sorted.map((act) => {
+      let shouldShow = false;
+      let title = "";
+      let description = act.action;
+      let statusIcon: "approved" | "rejected" | "pending" | "info" | "certificate" | "system" = "info";
+      
+      const lowerAction = act.action.toLowerCase();
+
+      // Look up corresponding request
+      const req = requests.find(r => r.clearanceId === act.clearanceId || r.id === act.target);
+      const isMyRequest = req && req.studentId === user.id;
+
+      if (user.role === "student") {
+        if (isMyRequest) {
+          shouldShow = true;
+          if (act.status === "approved") {
+            if (lowerAction.includes("certificate") || lowerAction.includes("generated")) {
+              title = "Clearance Completed";
+              description = "Your overall clearance is fully approved. Certificate generated successfully!";
+              statusIcon = "certificate";
+            } else {
+              title = "Department Approved";
+              description = `${act.department} has approved your clearance request (${act.clearanceId}).`;
+              statusIcon = "approved";
+            }
+          } else if (act.status === "rejected") {
+            title = "Department Rejected";
+            description = `${act.department} has rejected your clearance request. Please verify outstanding obligations.`;
+            statusIcon = "rejected";
+          } else if (lowerAction.includes("submit")) {
+            title = "Clearance Request Submitted";
+            description = `Your ${req.requestType.toUpperCase()} clearance request (${act.clearanceId}) was successfully submitted.`;
+            statusIcon = "pending";
+          }
+        }
+      } else if (user.role === "department") {
+        const dept = user.department;
+        if (dept) {
+          if (lowerAction.includes("submit") && req && req.departments.some(d => d.department === dept)) {
+            shouldShow = true;
+            title = "New Request Assigned";
+            description = `A new ${req.requestType.toUpperCase()} clearance request (${act.clearanceId}) has been assigned to your department.`;
+            statusIcon = "pending";
+          }
+          if (act.actorRole === "registrar" && req && req.departments.some(d => d.department === dept)) {
+            shouldShow = true;
+            title = "Registrar Completed Review";
+            description = `Registrar has ${act.status} request ${act.clearanceId} for ${req.studentName}.`;
+            statusIcon = act.status === "approved" ? "approved" : "rejected";
+          }
+          if (act.actorRole === "department" && act.department === dept) {
+            shouldShow = true;
+            title = act.status === "approved" ? "Approval Recorded" : "Rejection Recorded";
+            description = `You marked request ${act.clearanceId} as ${act.status}.`;
+            statusIcon = act.status === "approved" ? "approved" : "rejected";
+          }
+          if (lowerAction.includes("submit") && req && req.departments.find(d => d.department === dept)?.status === "pending") {
+            const ageMs = Date.now() - new Date(act.timestamp).getTime();
+            if (ageMs > 24 * 60 * 60 * 1000) {
+              shouldShow = true;
+              title = "Pending Review Reminder";
+              description = `Clearance request ${act.clearanceId} is still pending your department review.`;
+              statusIcon = "pending";
+            }
+          }
+        }
+      } else if (user.role === "registrar") {
+        if (act.status === "approved" && act.actorRole === "department" && req) {
+          const allOtherCleared = req.departments.every(
+            d => d.department === "Registrar" || d.status === "approved"
+          );
+          const registrarStatus = req.departments.find(d => d.department === "Registrar")?.status;
+          if (allOtherCleared && registrarStatus === "pending") {
+            shouldShow = true;
+            title = "Ready For Approval";
+            description = `Request ${act.clearanceId} for ${req.studentName} is now ready for final registrar sign-off.`;
+            statusIcon = "pending";
+          }
+        }
+        if (lowerAction.includes("bulk")) {
+          shouldShow = true;
+          title = "Bulk Approval Completed";
+          description = `Bulk approval of ready requests was executed successfully.`;
+          statusIcon = "approved";
+        }
+        if (lowerAction.includes("generated certificate")) {
+          shouldShow = true;
+          title = "Certificate Generated";
+          description = `Certificate generated for request ${act.clearanceId}.`;
+          statusIcon = "certificate";
+        }
+      } else if (user.role === "admin") {
+        shouldShow = true;
+        if (lowerAction.includes("user")) {
+          title = lowerAction.includes("created") ? "User Created" : lowerAction.includes("deleted") ? "User Deleted" : "User Updated";
+          description = `User account details saved or deleted: ${act.target || ""}`;
+          statusIcon = "system";
+        } else if (lowerAction.includes("obligation")) {
+          title = lowerAction.includes("added") ? "Obligation Added" : lowerAction.includes("removed") ? "Obligation Removed" : "Obligation Updated";
+          description = `${act.actor} modified obligations record: ${act.action}`;
+          statusIcon = "system";
+        } else if (lowerAction.includes("verify")) {
+          title = "Certificate Verification Event";
+          description = `Clearance certificate ID ${act.clearanceId} was publically verified.`;
+          statusIcon = "info";
+        } else {
+          title = "System Alert";
+          description = `${act.actor} ${act.action} ${act.target ? `(${act.target})` : ""}`;
+          statusIcon = "system";
+        }
+      }
+
+      return {
+        id: act.id,
+        timestamp: act.timestamp,
+        title: title || "Notification",
+        description,
+        statusIcon,
+        read: readIds.includes(act.id),
+        shouldShow
+      };
+    }).filter(n => n.shouldShow);
+  }, [activity, requests, user, readIds]);
+
+  const unreadCount = useMemo(() => userNotifications.filter(n => !n.read).length, [userNotifications]);
 
   const markAllAsRead = () => {
-    const allIds = activity.map((a) => a.id);
-    setReadIds(allIds);
-    localStorage.setItem("clearance-read-ids", JSON.stringify(allIds));
+    const allIds = userNotifications.map((n) => n.id);
+    const updatedReadIds = Array.from(new Set([...readIds, ...allIds]));
+    setReadIds(updatedReadIds);
+    localStorage.setItem("clearance-read-ids", JSON.stringify(updatedReadIds));
   };
+
+  const markAsRead = (id: string) => {
+    if (readIds.includes(id)) return;
+    const updated = [...readIds, id];
+    setReadIds(updated);
+    localStorage.setItem("clearance-read-ids", JSON.stringify(updated));
+  };
+
+  const filteredNotifications = useMemo(() => {
+    return userNotifications.filter(n => {
+      if (notifFilter === "unread") return !n.read;
+      if (notifFilter === "approvals") return n.statusIcon === "approved";
+      if (notifFilter === "rejections") return n.statusIcon === "rejected";
+      if (notifFilter === "certificates") return n.statusIcon === "certificate";
+      if (notifFilter === "system") return n.statusIcon === "system";
+      return true;
+    });
+  }, [userNotifications, notifFilter]);
 
   useEffect(() => {
     const saved = localStorage.getItem("theme") === "dark";
@@ -482,7 +641,7 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
                   variant="ghost"
                   size="icon"
                   className="relative rounded-full hover:bg-accent/40 size-9 flex items-center justify-center"
-                  onClick={() => setShowNotifications(!showNotifications)}
+                  onClick={() => setShowNotifications(true)}
                   aria-label="Notifications"
                 >
                   <Bell className="size-4.5 text-foreground/80 hover:text-foreground transition-colors" />
@@ -493,70 +652,128 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
                   )}
                 </Button>
 
-                {/* Notifications Dropdown */}
-                <AnimatePresence>
-                  {showNotifications && (
-                    <>
-                      {/* Click outside backdrop */}
-                      <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-                      <motion.div
-                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                        transition={{ duration: 0.15 }}
-                        className="absolute right-0 mt-2 w-80 sm:w-96 glass-strong rounded-2xl border border-border/40 shadow-2xl z-50 overflow-hidden flex flex-col max-h-[480px]"
-                      >
-                        <div className="px-4 py-3 border-b border-border/40 flex items-center justify-between bg-muted/20">
-                          <h3 className="font-display font-semibold text-sm">Notifications</h3>
+                {/* Notification Drawer Sheet */}
+                <Sheet open={showNotifications} onOpenChange={setShowNotifications}>
+                  <SheetContent className="sm:max-w-md flex flex-col h-full bg-background/95 backdrop-blur-md border-l">
+                    <SheetHeader className="pb-4 border-b">
+                      <div className="flex items-center justify-between">
+                        <SheetTitle className="font-display font-semibold text-lg flex items-center gap-2">
+                          <Bell className="size-5 text-primary animate-pulse" /> Notifications
                           {unreadCount > 0 && (
+                            <span className="bg-primary text-primary-foreground font-mono text-[10px] font-bold px-2 py-0.5 rounded-full">
+                              {unreadCount} unread
+                            </span>
+                          )}
+                        </SheetTitle>
+                        {unreadCount > 0 && (
+                          <button
+                            onClick={markAllAsRead}
+                            className="text-xs text-primary hover:underline font-semibold cursor-pointer"
+                          >
+                            Mark all read
+                          </button>
+                        )}
+                      </div>
+                    </SheetHeader>
+
+                    {/* Filters */}
+                    <div className="py-3 flex gap-1.5 overflow-x-auto border-b scrollbar-none">
+                      {(
+                        [
+                          { id: "all", label: "All" },
+                          { id: "unread", label: "Unread" },
+                          { id: "approvals", label: "Approvals" },
+                          { id: "rejections", label: "Rejections" },
+                          { id: "certificates", label: "Certificates" },
+                          { id: "system", label: "System" }
+                        ] as const
+                      ).map((f) => (
+                        <button
+                          key={f.id}
+                          onClick={() => setNotifFilter(f.id)}
+                          className={cn(
+                            "px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all duration-150 cursor-pointer",
+                            notifFilter === f.id
+                              ? "bg-primary/10 text-primary border-primary/20"
+                              : "bg-muted/40 text-muted-foreground border-transparent hover:text-foreground"
+                          )}
+                        >
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Scrollable list */}
+                    <div className="flex-1 overflow-y-auto divide-y divide-border/20 py-2 custom-scrollbar">
+                      {filteredNotifications.length === 0 ? (
+                        <div className="py-16 text-center text-muted-foreground select-none">
+                          <Bell className="size-8 mx-auto text-muted-foreground/35 mb-2.5" />
+                          <div className="text-xs font-bold text-foreground/80">No Notifications</div>
+                          <p className="text-[10px] mt-0.5">No notifications match this filter.</p>
+                        </div>
+                      ) : (
+                        filteredNotifications.map((notif) => {
+                          let StatusIcon = Shield;
+                          let iconColor = "bg-blue-500/10 text-blue-500 border-blue-500/20";
+                          if (notif.statusIcon === "approved") {
+                            StatusIcon = CheckCircle2;
+                            iconColor = "bg-success/15 text-success border-success/30";
+                          } else if (notif.statusIcon === "rejected") {
+                            StatusIcon = XCircle;
+                            iconColor = "bg-destructive/15 text-destructive border-destructive/30";
+                          } else if (notif.statusIcon === "pending") {
+                            StatusIcon = Clock;
+                            iconColor = "bg-warning/15 text-[oklch(0.5_0.16_75)] dark:text-warning border-warning/30";
+                          } else if (notif.statusIcon === "certificate") {
+                            StatusIcon = BadgeCheck;
+                            iconColor = "bg-purple-500/15 text-purple-500 border-purple-500/30";
+                          } else if (notif.statusIcon === "system") {
+                            StatusIcon = ShieldCheck;
+                            iconColor = "bg-blue-500/15 text-blue-400 border-blue-500/30";
+                          }
+
+                          return (
                             <button
-                              onClick={markAllAsRead}
-                              className="text-xs text-primary hover:underline font-medium"
+                              key={notif.id}
+                              onClick={() => markAsRead(notif.id)}
+                              className={cn(
+                                "w-full p-4 flex items-start gap-3.5 hover:bg-accent/40 transition-colors text-left border-b border-border/10 cursor-pointer",
+                                !notif.read && "bg-primary/5"
+                              )}
                             >
-                              Mark all as read
-                            </button>
-                          )}
-                        </div>
-                        <div className="flex-1 overflow-y-auto divide-y divide-border/30 max-h-[360px] custom-scrollbar">
-                          {activity.length === 0 ? (
-                            <div className="p-10 text-center text-muted-foreground select-none">
-                              <Bell className="size-8 mx-auto text-muted-foreground/30 mb-2.5 animate-bounce" />
-                              <div className="text-xs font-semibold text-foreground/80">All caught up</div>
-                              <div className="text-[10px] mt-0.5">No recent notifications at this time.</div>
-                            </div>
-                          ) : (
-                            activity.slice(0, 15).map((act) => {
-                              const isUnread = !readIds.includes(act.id);
-                              return (
-                                <div
-                                  key={act.id}
-                                  className={cn(
-                                    "p-3.5 flex items-start gap-3 hover:bg-accent/30 transition-colors text-left",
-                                    isUnread && "bg-primary/5"
-                                  )}
-                                >
-                                  <div className="size-2 rounded-full mt-1.5 shrink-0 bg-primary/80" style={{ opacity: isUnread ? 1 : 0 }} />
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-xs text-foreground leading-normal font-medium">
-                                      <span className="font-bold text-foreground">{act.actor}</span>{" "}
-                                      {act.action}
-                                    </p>
-                                    <span className="text-[10px] text-muted-foreground mt-1 block font-medium">
-                                      {formatRelativeTime(act.at)}
-                                    </span>
-                                  </div>
+                              {/* Status Icon */}
+                              <div className={cn("size-8.5 rounded-xl border flex items-center justify-center shrink-0 shadow-xs", iconColor)}>
+                                <StatusIcon className="size-4" />
+                              </div>
+
+                              {/* Title & Description */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-xs font-bold text-foreground truncate">{notif.title}</span>
+                                  <span className="text-[9px] text-muted-foreground font-semibold shrink-0">
+                                    {formatRelativeTime(notif.timestamp)}
+                                  </span>
                                 </div>
-                              );
-                            })
-                          )}
-                        </div>
-                        <div className="p-2.5 border-t border-border/40 text-center bg-muted/10">
-                          <span className="text-[10px] text-muted-foreground font-medium">Real-time clearance updates active</span>
-                        </div>
-                      </motion.div>
-                    </>
-                  )}
-                </AnimatePresence>
+                                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed font-semibold">
+                                  {notif.description}
+                                </p>
+                              </div>
+
+                              {/* Read Dot */}
+                              {!notif.read && (
+                                <div className="size-2 rounded-full bg-primary mt-1.5 shrink-0" />
+                              )}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    <div className="p-3 border-t text-center bg-muted/10 shrink-0">
+                      <span className="text-[10px] text-muted-foreground font-semibold">Secure Real-time clearance system active</span>
+                    </div>
+                  </SheetContent>
+                </Sheet>
               </div>
 
               <Button variant="ghost" size="icon" className="rounded-full size-9" onClick={toggleTheme} aria-label="Toggle theme">

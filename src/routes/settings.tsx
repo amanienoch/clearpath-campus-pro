@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
-import { authStore, useAuthUser, usePasswordChangeRequired } from "@/lib/store";
+import { authStore, useAuthUser, usePasswordChangeRequired, store } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -80,6 +80,9 @@ function SettingsPage() {
 
       // Update store state
       authStore.setPasswordChangeRequired(false);
+
+      // Log the activity
+      await store.logActivity(user.name, "updated their account password");
 
       // Redirect student to their dashboard
       if (user.role === "student") {

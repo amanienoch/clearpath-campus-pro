@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { useAuthUser, useStore, store } from "@/lib/store";
 import { ClearanceRequest, ClearanceStatus, Department, REQUEST_TYPE_LABEL, User, DEPARTMENTS } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
+import { UnifiedActivityFeed } from "@/components/UnifiedActivityFeed";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -362,6 +363,14 @@ function RegistrarDashboard() {
     setBulkApproving(false);
     setSelectedRows([]);
     toast.success(`Successfully approved ${successCount} requests.`, { id: toastId });
+    try {
+      await store.logActivity(
+        user?.name || "Registrar",
+        `executed bulk approval of ${successCount} requests`
+      );
+    } catch (err) {
+      console.error("Failed to log bulk approval activity", err);
+    }
   };
 
   // Single Approve / Reject Actions
@@ -1184,82 +1193,10 @@ function RegistrarDashboard() {
          * ───────────────────────────────────────────────────────────────────────── */}
         <TabsContent value="activity" className="space-y-6">
           <div className="glass-strong rounded-2xl p-6 border border-border/40 space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <h3 className="font-display font-semibold text-lg flex items-center gap-2">
-                  <Activity className="size-5 text-primary animate-pulse" /> Real-time Activity Feed
-                </h3>
-                <p className="text-xs text-muted-foreground mt-0.5 font-medium">Audit logs tracking clearance operations across the university</p>
-              </div>
-
-              <div className="flex items-center gap-3 flex-wrap">
-                <div className="relative max-w-xs flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search logs..."
-                    value={activitySearch}
-                    onChange={(e) => setActivitySearch(e.target.value)}
-                    className="pl-9 rounded-xl border-border/60 bg-background/50 h-9"
-                  />
-                </div>
-
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-semibold bg-muted/40 p-1 rounded-xl border">
-                  <button
-                    onClick={() => setActivityTypeFilter("all")}
-                    className={cn("px-2.5 py-1 rounded-lg transition-all", activityTypeFilter === "all" ? "bg-background text-foreground shadow-xs font-bold" : "hover:text-foreground")}
-                  >All</button>
-                  <button
-                    onClick={() => setActivityTypeFilter("approval")}
-                    className={cn("px-2.5 py-1 rounded-lg transition-all", activityTypeFilter === "approval" ? "bg-success/15 text-success shadow-xs font-bold border border-success/20" : "hover:text-foreground")}
-                  >Approval</button>
-                  <button
-                    onClick={() => setActivityTypeFilter("rejection")}
-                    className={cn("px-2.5 py-1 rounded-lg transition-all", activityTypeFilter === "rejection" ? "bg-destructive/15 text-destructive shadow-xs font-bold border border-destructive/20" : "hover:text-foreground")}
-                  >Rejection</button>
-                  <button
-                    onClick={() => setActivityTypeFilter("certificate")}
-                    className={cn("px-2.5 py-1 rounded-lg transition-all", activityTypeFilter === "certificate" ? "bg-indigo-500/15 text-indigo-400 shadow-xs font-bold border border-indigo-500/20" : "hover:text-foreground")}
-                  >Certificate</button>
-                  <button
-                    onClick={() => setActivityTypeFilter("verification")}
-                    className={cn("px-2.5 py-1 rounded-lg transition-all", activityTypeFilter === "verification" ? "bg-primary/15 text-primary shadow-xs font-bold border border-primary/20" : "hover:text-foreground")}
-                  >Verification</button>
-                </div>
-              </div>
-            </div>
-
-            <div className="divide-y divide-border/20 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-              {filteredActivity.length === 0 ? (
-                <div className="py-16 text-center text-muted-foreground select-none">
-                  <Inbox className="size-10 mx-auto text-muted-foreground/30 mb-3" />
-                  <div className="font-semibold text-sm">No activity logs found.</div>
-                  <div className="text-xs mt-1">Activities are generated when clearance steps are executed.</div>
-                </div>
-              ) : (
-                filteredActivity.map((act) => (
-                  <div key={act.id} className="py-3.5 flex items-start gap-4 hover:bg-muted/10 px-2 rounded-xl transition-colors text-left animate-fade-in font-medium">
-                    <div className="size-8 rounded-full gradient-bg grid place-items-center text-primary-foreground text-xs font-bold shrink-0">
-                      {act.actor.split(" ").map((p) => p[0]).slice(0, 2).join("")}
-                    </div>
-                    <div className="flex-1 min-w-0 text-xs">
-                      <p className="text-foreground leading-normal font-semibold">
-                        <span className="font-black text-foreground text-sm">{act.actor}</span>{" "}
-                        {act.action}
-                      </p>
-                      <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-2">
-                        <span>{new Date(act.at).toLocaleString()}</span>
-                        {act.target && (
-                          <>
-                            <span>&middot;</span>
-                            <span className="font-mono bg-muted/60 px-1.5 py-0.5 rounded text-[9px] font-bold text-foreground">{act.target}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+            <h3 className="font-display font-semibold text-lg mb-4 flex items-center gap-2">
+              <Activity className="size-5 text-primary animate-pulse" /> Real-time Activity Feed
+            </h3>
+            <UnifiedActivityFeed items={activity} />
           </div>
         </TabsContent>
       </Tabs>

@@ -32,6 +32,13 @@ export const verifyClearanceCertificate = createServerFn({ method: "POST" })
     if (error) throw error;
     if (!request) return { found: false, clearanceId };
 
+    // Log verification activity!
+    await supabaseAdmin.from("activity_logs").insert({
+      actor: "Verification System",
+      action: `verified certificate`,
+      target: clearanceId,
+    });
+
     const { data: newerApproved, error: newerError } = await supabaseAdmin
       .from("clearance_requests")
       .select("id")

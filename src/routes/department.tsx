@@ -25,6 +25,7 @@ import {
 import { toast } from "sonner";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { evaluateDepartment, NGN } from "@/lib/eligibility";
+import { UnifiedActivityFeed } from "@/components/UnifiedActivityFeed";
 
 export const Route = createFileRoute("/department")({
   head: () => ({ meta: [{ title: "Department Dashboard — E-Clearance" }] }),
@@ -231,6 +232,72 @@ function DepartmentPage() {
   const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
   const [activitySearch, setActivitySearch] = useState("");
 
+  /* ── Bulk Action States ── */
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkState, setBulkState] = useState<{
+    isOpen: boolean;
+    running: boolean;
+    results: { approved: number; skipped: number; failed: number } | null;
+  }>({ isOpen: false, running: false, results: null });
+
+  const handleSelectAll = useCallback((checked: boolean) => {
+    if (checked) {
+      setSelectedIds(new Set(filtered.map(r => r.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  }, [filtered]);
+
+  const handleSelectRow = useCallback((id: string, checked: boolean) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const handleBulkApprove = async () => {
+    if (!dept) return;
+    setBulkState(prev => ({ ...prev, running: true, results: null }));
+    let approved = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    const reviewer = user?.name ?? "Staff";
+
+    for (const id of Array.from(selectedIds)) {
+      const req = requests.find(r => r.id === id);
+      if (!req) continue;
+
+      // Skip if already approved in this dept
+      const currentStatus = req.departments.find(d => d.department === dept)?.status;
+      if (currentStatus === "approved") {
+        skipped++;
+        continue;
+      }
+
+      const evalResult = evaluateDepartment(dept, req.studentId, { loans, fees, assets, hostel, sports });
+      if (evalResult.eligible) {
+        try {
+          await store.reviewDepartment(req.id, dept, "approved", "Bulk Smart Approval: Cleared.", reviewer);
+          approved++;
+        } catch (e) {
+          failed++;
+        }
+      } else {
+        skipped++;
+      }
+    }
+
+    if (approved > 0 || failed > 0 || skipped > 0) {
+      await store.logActivity(reviewer, `performed bulk smart approval (Approved: ${approved}, Skipped: ${skipped}, Failed: ${failed})`, "Multiple Requests");
+    }
+
+    setBulkState({ isOpen: true, running: false, results: { approved, skipped, failed } });
+    setSelectedIds(new Set());
+  };
+
   const handleStudentClick = useCallback((studentId: string) => {
     const student = allUsers.find((u) => u.id === studentId);
     if (student) setSelectedStudent(student);
@@ -354,12 +421,12 @@ function DepartmentPage() {
           </div>
 
           {/* Search and Filter Bar */}
-          <div className="glass-strong rounded-2xl p-5 flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
+          <div className="glass-strong rounded-2xl p-5 flex flex-col sm:flex-row gap-3 items-center">
+            <div className="relative flex-1 w-full">
               <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input className="pl-9" placeholder="Search by name, matric no, or clearance ID…" value={q} onChange={(e) => setQ(e.target.value)} />
             </div>
-            <div className="flex gap-1 rounded-lg border p-1 bg-background">
+            <div className="flex gap-1 rounded-lg border p-1 bg-background w-full sm:w-auto overflow-x-auto">
               {(["all", "pending", "approved", "rejected"] as const).map((f) => (
                 <button
                   key={f}
@@ -370,6 +437,15 @@ function DepartmentPage() {
                 >{f}</button>
               ))}
             </div>
+            <Button 
+              variant="outline" 
+              className="gradient-bg text-primary-foreground border-0 shadow-md transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100 whitespace-nowrap"
+              disabled={selectedIds.size === 0}
+              onClick={() => setBulkState({ isOpen: true, running: false, results: null })}
+            >
+              <CheckCircle2 className="size-4 mr-1.5" />
+              Approve Eligible ({selectedIds.size})
+            </Button>
           </div>
 
           {/* Active Filter Chips */}
@@ -403,6 +479,15 @@ function DepartmentPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-muted/40 text-left sticky top-0 z-10">
                     <tr>
+                      <th className="px-4 py-3 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          className="size-4 rounded border-border text-primary focus:ring-primary cursor-pointer accent-primary"
+                          checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                          onChange={(e) => handleSelectAll(e.target.checked)}
+                          aria-label="Select all requests"
+                        />
+                      </th>
                       <th className="px-4 py-3 font-semibold">Student</th>
                       <th className="px-4 py-3 font-semibold">Clearance ID</th>
                       <th className="px-4 py-3 font-semibold">Submitted</th>
@@ -413,6 +498,15 @@ function DepartmentPage() {
                   <tbody>
                     {filtered.map((r, i) => (
                       <tr key={r.id} className="border-t row-hover-premium animate-fade-up" style={{ animationDelay: `${i * 30}ms` }}>
+                        <td className="px-4 py-3 text-center">
+                          <input
+                            type="checkbox"
+                            className="size-4 rounded border-border text-primary focus:ring-primary cursor-pointer accent-primary"
+                            checked={selectedIds.has(r.id)}
+                            onChange={(e) => handleSelectRow(r.id, e.target.checked)}
+                            aria-label={`Select request ${r.clearanceId}`}
+                          />
+                        </td>
                         <td className="px-4 py-3">
                           <button
                             onClick={() => handleStudentClick(r.studentId)}
@@ -553,28 +647,10 @@ function DepartmentPage() {
          * ═══════════════════════════════════════════════════════════════════ */}
         <TabsContent value="activity" className="space-y-4">
           <div className="glass-strong rounded-2xl p-6 border border-border/40">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
-              <h3 className="font-display font-semibold text-lg flex items-center gap-2">
-                <Activity className="size-5 text-primary animate-pulse" /> Department Activity
-              </h3>
-              <div className="relative w-full sm:w-60">
-                <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search activity..."
-                  value={activitySearch}
-                  onChange={(e) => setActivitySearch(e.target.value)}
-                  className="pl-9 h-9 w-full rounded-xl"
-                />
-              </div>
-            </div>
-            <ActivityFeed
-              items={deptActivity}
-              search={activitySearch}
-              dept={dept ?? ""}
-              allRequests={requests}
-              onStudentClick={handleStudentClick}
-            />
+            <h3 className="font-display font-semibold text-lg mb-4 flex items-center gap-2">
+              <Activity className="size-5 text-primary animate-pulse" /> Department Activity
+            </h3>
+            <UnifiedActivityFeed items={deptActivity} />
           </div>
         </TabsContent>
       </Tabs>
@@ -598,6 +674,15 @@ function DepartmentPage() {
         assets={assets}
         hostel={hostel}
         sports={sports}
+      />
+
+      <BulkApprovalModal
+        isOpen={bulkState.isOpen}
+        running={bulkState.running}
+        results={bulkState.results}
+        selectedCount={selectedIds.size}
+        onClose={() => setBulkState(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={handleBulkApprove}
       />
     </AppShell>
   );
@@ -1178,5 +1263,92 @@ function Info({ label, value, mono }: { label: string; value: string; mono?: boo
       <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className={`font-medium text-sm mt-0.5 ${mono ? "font-mono" : ""}`}>{value}</div>
     </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * BULK APPROVAL MODAL
+ * ───────────────────────────────────────────────────────────────────────── */
+function BulkApprovalModal({
+  isOpen, running, results, selectedCount, onClose, onConfirm,
+}: {
+  isOpen: boolean; running: boolean; results: { approved: number; skipped: number; failed: number } | null;
+  selectedCount: number; onClose: () => void; onConfirm: () => void;
+}) {
+  return (
+    <Dialog open={isOpen} onOpenChange={(o) => !o && !running && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl flex items-center gap-2">
+            <Zap className="size-6 text-primary" /> Bulk Smart Approval
+          </DialogTitle>
+        </DialogHeader>
+        
+        {!results && !running && (
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              You are about to evaluate <strong>{selectedCount}</strong> selected request{selectedCount !== 1 ? 's' : ''}. The system will run the eligibility logic for each request and <strong>approve only those that satisfy all department requirements</strong>.
+            </p>
+            <div className="p-3 bg-primary/10 border border-primary/20 rounded-xl text-xs text-primary font-medium flex items-start gap-2">
+              <Shield className="size-4 shrink-0 mt-0.5" />
+              This action is safe. It will not bypass your department's approval rules. Requests with outstanding obligations will be skipped automatically.
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button variant="outline" onClick={onClose}>Cancel</Button>
+              <Button className="gradient-bg text-primary-foreground" onClick={onConfirm}>
+                <CheckCircle2 className="size-4 mr-2" /> Start Bulk Approval
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {running && (
+          <div className="py-8 text-center space-y-4 animate-fade-in">
+            <div className="size-12 rounded-full bg-primary/20 flex items-center justify-center mx-auto">
+              <Timer className="size-6 text-primary animate-spin" />
+            </div>
+            <div>
+              <div className="font-bold">Processing Requests...</div>
+              <div className="text-xs text-muted-foreground mt-1">Applying eligibility rules to {selectedCount} request{selectedCount !== 1 ? 's' : ''}.</div>
+            </div>
+          </div>
+        )}
+
+        {results && (
+          <div className="space-y-5 py-2 animate-fade-up">
+            <div className="text-center space-y-1 mb-4">
+              <div className="size-12 rounded-full bg-success/20 flex items-center justify-center mx-auto mb-3">
+                <CheckCircle2 className="size-6 text-success" />
+              </div>
+              <div className="font-bold text-lg">Bulk Approval Complete</div>
+              <div className="text-xs text-muted-foreground">The system has processed all selected requests.</div>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="p-3 rounded-xl border border-success/30 bg-success/5">
+                <div className="text-2xl font-bold text-success font-display">{results.approved}</div>
+                <div className="text-[10px] uppercase font-bold text-success/80 mt-1 tracking-wider">Approved</div>
+              </div>
+              <div className="p-3 rounded-xl border border-warning/30 bg-warning/5">
+                <div className="text-2xl font-bold text-warning font-display">{results.skipped}</div>
+                <div className="text-[10px] uppercase font-bold text-warning/80 mt-1 tracking-wider">Skipped</div>
+              </div>
+              <div className="p-3 rounded-xl border border-destructive/30 bg-destructive/5">
+                <div className="text-2xl font-bold text-destructive font-display">{results.failed}</div>
+                <div className="text-[10px] uppercase font-bold text-destructive/80 mt-1 tracking-wider">Failed</div>
+              </div>
+            </div>
+            
+            <p className="text-xs text-muted-foreground text-center">
+              Requests were skipped if they had outstanding obligations or were already approved.
+            </p>
+            
+            <div className="flex justify-center pt-2">
+              <Button onClick={onClose} className="w-full">Done</Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
