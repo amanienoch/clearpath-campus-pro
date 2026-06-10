@@ -49,6 +49,7 @@ export function UnifiedActivityFeed({
   >("all");
 
   const requests = useStore((s) => s.requests);
+  const users = useStore((s) => s.users);
 
   // 1. Resolve studentName and matricNo for search and display
   const parsedItems = useMemo(() => {
@@ -60,6 +61,12 @@ export function UnifiedActivityFeed({
       if (req) {
         studentName = req.studentName;
         matricNo = req.matricNo;
+      } else if (item.target) {
+        const targetUser = users.find((u) => u.id === item.target || u.matricNo === item.target || u.admissionNumber === item.target);
+        if (targetUser?.role === "student") {
+          studentName = targetUser.name;
+          matricNo = targetUser.matricNo ?? targetUser.admissionNumber ?? "";
+        }
       }
       
       return {
@@ -68,7 +75,7 @@ export function UnifiedActivityFeed({
         matricNo
       };
     });
-  }, [items, requests]);
+  }, [items, requests, users]);
 
   // 2. Filter items based on selected category and text search
   const filteredItems = useMemo(() => {

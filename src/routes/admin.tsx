@@ -45,6 +45,8 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
+const toAdminSearch = (tab: string, search = "", openNew = "") => ({ tab, search, openNew });
+
 function AdminPage() {
   const requests = useStore((s) => s.requests);
   const users = useStore((s) => s.users);
@@ -68,7 +70,7 @@ function AdminPage() {
   const [obligationsSearch, setObligationsSearch] = useState("");
 
   const handleTabChange = (val: string) => {
-    navigate({ search: { tab: val } });
+    navigate({ search: toAdminSearch(val) });
   };
 
   const stats = useMemo(() => ({
@@ -291,7 +293,7 @@ function AdminPage() {
                         fill={e.color}
                         className="cursor-pointer hover:opacity-85"
                         onClick={() => {
-                          const statusMap = { Approved: "approved", Pending: "pending", Rejected: "rejected" };
+                          const statusMap: Record<string, "approved" | "pending" | "rejected"> = { Approved: "approved", Pending: "pending", Rejected: "rejected" };
                           setOverviewStatusFilter(statusMap[e.name]);
                         }}
                       />
@@ -326,7 +328,7 @@ function AdminPage() {
                       Search: <span className="font-bold">&ldquo;{overviewSearch}&rdquo;</span>
                       <button onClick={() => {
                         setOverviewSearch("");
-                        navigate({ search: { tab: "overview" } });
+                        navigate({ search: toAdminSearch("overview") });
                       }} className="hover:text-foreground ml-1 font-bold font-mono">×</button>
                     </span>
                   )}
@@ -487,7 +489,7 @@ function AdminPage() {
                         fill={e.color}
                         className="cursor-pointer hover:opacity-85"
                         onClick={() => {
-                          const statusMap = { Approved: "approved", Pending: "pending", Rejected: "rejected" };
+                          const statusMap: Record<string, "approved" | "pending" | "rejected"> = { Approved: "approved", Pending: "pending", Rejected: "rejected" };
                           setOverviewStatusFilter(statusMap[e.name]);
                           handleTabChange("overview");
                         }}
@@ -541,7 +543,7 @@ function AdminPage() {
                         fill="oklch(0.6 0.23 27)"
                         className="cursor-pointer hover:opacity-85"
                         onClick={() => {
-                          const subtabMap = {
+                          const subtabMap: Record<string, string> = {
                             Finance: "finance",
                             Library: "library",
                             ICT: "ict",
@@ -669,7 +671,7 @@ function UsersTab({ users, search, setSearch, onSelectStudent }: { users: User[]
         setEdit({ id: crypto.randomUUID(), name: "", email: "", role: "student", password: "" });
         setOpen(true);
         // Clear param reactively
-        navigate({ search: { tab: "users" } });
+        navigate({ search: toAdminSearch("users") });
       }
     }
   }, [tab, searchParam, openNew, navigate, setSearch]);
@@ -991,7 +993,7 @@ function ObligationsTab({
         setFeeEdit({ studentId: allStudents[0]?.id || "", item: "", amountDue: 0 });
         setFeeOpen(true);
         // Clear parameter reactively
-        navigate({ search: { tab: "obligations" } });
+        navigate({ search: toAdminSearch("obligations") });
       }
     }
   }, [tab, searchParam, openNew, allStudents, navigate, setSearch]);

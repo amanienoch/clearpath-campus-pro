@@ -646,7 +646,7 @@ function RegistrarDashboard() {
 
     // Stage 3
     const regReview = selectedRequest.departments.find(d => d.department === "Registrar");
-    const regApproved = regReview && regReview.status === "approved";
+    const regApproved = regReview?.status === "approved";
     events.push({
       title: "Final Registrar Approval",
       desc: regApproved ? `Approved by ${regReview.reviewedBy || "Registrar"}` : "Awaiting Registrar final review.",
@@ -1325,7 +1325,7 @@ function RegistrarDashboard() {
                     {studentDetailsData.verifications.map((v) => (
                       <div key={v.id} className="p-2.5 rounded-lg border bg-muted/20 text-xs font-medium flex justify-between items-center">
                         <span className="text-muted-foreground">{v.action} by <span className="font-bold text-foreground">{v.actor}</span></span>
-                        <span className="font-mono text-[10px] text-muted-foreground">{new Date(v.at).toLocaleDateString()}</span>
+                        <span className="font-mono text-[10px] text-muted-foreground">{new Date(v.timestamp).toLocaleDateString()}</span>
                       </div>
                     ))}
                   </div>

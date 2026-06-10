@@ -67,7 +67,7 @@ export const generateDemoData = createServerFn({ method: "POST" }).handler(async
         uid = created.user.id;
       }
     } catch (e) {
-      console.error("auth error", e?.message ?? e);
+      console.error("auth error", e instanceof Error ? e.message : e);
       continue;
     }
 
@@ -126,7 +126,7 @@ export const generateDemoData = createServerFn({ method: "POST" }).handler(async
     if (Math.random() < 0.12) {
       const kits = ["Football Kit", "Basketball Jersey", "Training Equipment"];
       const item = rand(kits);
-      await supabaseAdmin.from("sports_loans").insert({ student_id: uid, item, returned: Math.random() < 0.5 });
+      await supabaseAdmin.from("sports_loans").insert({ student_id: uid, equipment: item, returned: Math.random() < 0.5 });
       createdObligations.sports += 1;
     }
 

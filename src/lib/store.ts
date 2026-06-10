@@ -82,7 +82,7 @@ function parseActivityRow(
   }
 
   // 2. Determine status
-  if (lowerAction.includes("approved") || lowerAction.includes("cleared")) {
+  if (lowerAction.includes("approved") || lowerAction.includes("approval") || lowerAction.includes("cleared")) {
     status = "approved";
   } else if (lowerAction.includes("rejected") || lowerAction.includes("denied")) {
     status = "rejected";
@@ -97,7 +97,9 @@ function parseActivityRow(
     u => u.name.toLowerCase() === lowerActor || u.email.toLowerCase() === lowerActor
   );
   if (matchedUser) {
-    actorRole = matchedUser.role;
+    actorRole = matchedUser.role === "department" && matchedUser.department === "Registrar"
+      ? "registrar"
+      : matchedUser.role;
     department = matchedUser.department;
   } else {
     if (lowerActor === "admin" || lowerActor === "administrator" || lowerAction.includes("obligation") || lowerAction.includes("user")) {
@@ -275,7 +277,7 @@ async function loadAll() {
     }
   }
 
-  const users: User[] = (_profilesRes.data ?? []).map((p) =>
+  const users: User[] = ((_profilesRes.data ?? []) as Array<Record<string, unknown>>).map((p) =>
     profileRowToUser(p as Record<string, unknown>, roleMap.get((p as { id: string }).id) ?? "student"),
   );
 
@@ -284,7 +286,7 @@ async function loadAll() {
     (_revsRes.data ?? []) as Array<Record<string, unknown>>,
   );
 
-  const activity: ActivityItem[] = (_actsRes.data ?? []).map((a) =>
+  const activity: ActivityItem[] = ((_actsRes.data ?? []) as Array<Record<string, unknown>>).map((a) =>
     parseActivityRow(a as Record<string, unknown>, requests, users)
   );
 

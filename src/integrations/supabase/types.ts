@@ -232,6 +232,33 @@ export type Database = {
         }
         Relationships: []
       }
+      sports_loans: {
+        Row: {
+          created_at: string
+          equipment: string
+          id: string
+          replacement_cost: number
+          returned: boolean
+          student_id: string
+        }
+        Insert: {
+          created_at?: string
+          equipment: string
+          id?: string
+          replacement_cost?: number
+          returned?: boolean
+          student_id: string
+        }
+        Update: {
+          created_at?: string
+          equipment?: string
+          id?: string
+          replacement_cost?: number
+          returned?: boolean
+          student_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string

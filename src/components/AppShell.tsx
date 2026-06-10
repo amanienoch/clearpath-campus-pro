@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo, type ReactNode } from "react";
 import { authStore, useAuthHydrated, useAuthUser, useStore, usePasswordChangeRequired } from "@/lib/store";
 import { Role } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, LogOut, Menu, Moon, ShieldCheck, Sun, X, PanelLeftClose, PanelLeftOpen, Bell, Search, Settings, Inbox, CheckCircle2, XCircle, Clock, BadgeCheck, ShieldAlert } from "lucide-react";
+import { GraduationCap, LogOut, Menu, Moon, Shield, ShieldCheck, Sun, X, PanelLeftClose, PanelLeftOpen, Bell, Search, Settings, Inbox, CheckCircle2, XCircle, Clock, BadgeCheck, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -81,6 +81,7 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
   const [showNotifications, setShowNotifications] = useState(false);
   const [readIds, setReadIds] = useState<string[]>([]);
   const [notifFilter, setNotifFilter] = useState<"all" | "unread" | "approvals" | "rejections" | "certificates" | "system">("all");
+  const [notifSearch, setNotifSearch] = useState("");
 
   useEffect(() => {
     const saved = localStorage.getItem("clearance-read-ids");
@@ -99,6 +100,7 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
   // Derive notifications list based on the user's role
   const userNotifications = useMemo(() => {
     if (!user) return [];
+    const isRegistrarUser = user.role === "department" && user.department === "Registrar";
     
     // Sort chronologically descending
     const sorted = [...activity].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
@@ -136,7 +138,51 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
             title = "Clearance Request Submitted";
             description = `Your ${req.requestType.toUpperCase()} clearance request (${act.clearanceId}) was successfully submitted.`;
             statusIcon = "pending";
+          } else if (lowerAction.includes("generated certificate")) {
+            title = "Certificate Generated";
+            description = `Your clearance certificate ${act.clearanceId} is ready.`;
+            statusIcon = "certificate";
+          } else if (lowerAction.includes("downloaded certificate")) {
+            title = "Certificate Downloaded";
+            description = `Your clearance certificate ${act.clearanceId} was downloaded.`;
+            statusIcon = "certificate";
           }
+        }
+      } else if (isRegistrarUser) {
+        if (act.status === "approved" && act.actorRole === "department" && req) {
+          const allOtherCleared = req.departments.every(
+            d => d.department === "Registrar" || d.status === "approved"
+          );
+          const registrarStatus = req.departments.find(d => d.department === "Registrar")?.status;
+          if (allOtherCleared && registrarStatus === "pending") {
+            shouldShow = true;
+            title = "Ready For Approval";
+            description = `Request ${act.clearanceId} for ${req.studentName} is ready for final registrar sign-off.`;
+            statusIcon = "pending";
+          } else {
+            shouldShow = true;
+            title = "Department Approval Recorded";
+            description = `${act.department} approved ${act.clearanceId} for ${req.studentName}.`;
+            statusIcon = "approved";
+          }
+        }
+        if (lowerAction.includes("bulk")) {
+          shouldShow = true;
+          title = "Bulk Approval Completed";
+          description = `Bulk approval was executed successfully${act.target ? ` for ${act.target}` : ""}.`;
+          statusIcon = "approved";
+        }
+        if (lowerAction.includes("generated certificate")) {
+          shouldShow = true;
+          title = "Certificate Generated";
+          description = `Certificate generated for request ${act.clearanceId}.`;
+          statusIcon = "certificate";
+        }
+        if (act.actorRole === "registrar" && req) {
+          shouldShow = true;
+          title = act.status === "rejected" ? "Registrar Rejection Recorded" : "Registrar Approval Recorded";
+          description = `Final registrar review was recorded for ${req.studentName} (${act.clearanceId}).`;
+          statusIcon = act.status === "rejected" ? "rejected" : "approved";
         }
       } else if (user.role === "department") {
         const dept = user.department;
@@ -169,31 +215,6 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
             }
           }
         }
-      } else if (user.role === "registrar") {
-        if (act.status === "approved" && act.actorRole === "department" && req) {
-          const allOtherCleared = req.departments.every(
-            d => d.department === "Registrar" || d.status === "approved"
-          );
-          const registrarStatus = req.departments.find(d => d.department === "Registrar")?.status;
-          if (allOtherCleared && registrarStatus === "pending") {
-            shouldShow = true;
-            title = "Ready For Approval";
-            description = `Request ${act.clearanceId} for ${req.studentName} is now ready for final registrar sign-off.`;
-            statusIcon = "pending";
-          }
-        }
-        if (lowerAction.includes("bulk")) {
-          shouldShow = true;
-          title = "Bulk Approval Completed";
-          description = `Bulk approval of ready requests was executed successfully.`;
-          statusIcon = "approved";
-        }
-        if (lowerAction.includes("generated certificate")) {
-          shouldShow = true;
-          title = "Certificate Generated";
-          description = `Certificate generated for request ${act.clearanceId}.`;
-          statusIcon = "certificate";
-        }
       } else if (user.role === "admin") {
         shouldShow = true;
         if (lowerAction.includes("user")) {
@@ -206,8 +227,12 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
           statusIcon = "system";
         } else if (lowerAction.includes("verify")) {
           title = "Certificate Verification Event";
-          description = `Clearance certificate ID ${act.clearanceId} was publically verified.`;
+          description = `Clearance certificate ID ${act.clearanceId} was publicly verified.`;
           statusIcon = "info";
+        } else if (lowerAction.includes("password") || lowerAction.includes("signed in") || lowerAction.includes("signed out")) {
+          title = "Security Event";
+          description = `${act.actor} ${act.action}.`;
+          statusIcon = "system";
         } else {
           title = "System Alert";
           description = `${act.actor} ${act.action} ${act.target ? `(${act.target})` : ""}`;
@@ -221,6 +246,9 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
         title: title || "Notification",
         description,
         statusIcon,
+        actor: act.actor,
+        clearanceId: act.clearanceId,
+        target: act.target,
         read: readIds.includes(act.id),
         shouldShow
       };
@@ -251,8 +279,18 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
       if (notifFilter === "certificates") return n.statusIcon === "certificate";
       if (notifFilter === "system") return n.statusIcon === "system";
       return true;
+    }).filter((n) => {
+      const q = notifSearch.trim().toLowerCase();
+      if (!q) return true;
+      return [
+        n.title,
+        n.description,
+        n.actor,
+        n.clearanceId,
+        n.target,
+      ].some((value) => value?.toLowerCase().includes(q));
     });
-  }, [userNotifications, notifFilter]);
+  }, [userNotifications, notifFilter, notifSearch]);
 
   useEffect(() => {
     const saved = localStorage.getItem("theme") === "dark";
@@ -356,7 +394,7 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
         subtitle: "Inspect clearance hashes and verify legitimacy",
         category: "Actions",
         action: () => {
-          navigate({ to: "/verify" });
+          navigate({ to: "/verify", search: { id: "" } });
         }
       }
     );
@@ -675,6 +713,18 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
                         )}
                       </div>
                     </SheetHeader>
+
+                    <div className="pt-3">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                        <input
+                          value={notifSearch}
+                          onChange={(e) => setNotifSearch(e.target.value)}
+                          placeholder="Search notifications..."
+                          className="h-10 w-full rounded-xl border border-border/50 bg-muted/30 pl-9 pr-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary/40 focus:bg-background"
+                        />
+                      </div>
+                    </div>
 
                     {/* Filters */}
                     <div className="py-3 flex gap-1.5 overflow-x-auto border-b scrollbar-none">

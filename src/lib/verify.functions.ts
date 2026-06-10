@@ -16,6 +16,7 @@ export interface VerificationResult {
 }
 
 export const verifyClearanceCertificate = createServerFn({ method: "POST" })
+  .inputValidator((data: string) => data)
   .handler(async ({ data: rawId }: { data: string }): Promise<VerificationResult> => {
     const clearanceId = rawId.trim().toUpperCase();
     if (!clearanceId) return { found: false, clearanceId: "" };
@@ -73,6 +74,7 @@ export const verifyClearanceCertificate = createServerFn({ method: "POST" })
   });
 
 export const resolveMatricToEmail = createServerFn({ method: "POST" })
+  .inputValidator((data: string) => data)
   .handler(async ({ data: matricNo }: { data: string }): Promise<string | null> => {
     const { data: profile } = await supabaseAdmin
       .from("profiles")
