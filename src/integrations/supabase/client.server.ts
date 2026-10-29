@@ -30,9 +30,6 @@ function createSupabaseAdminClient() {
   if (!SUPABASE_URL) {
     SUPABASE_URL = "https://docukpjoyvjcgzyiikio.supabase.co";
   }
-  if (!SUPABASE_SERVICE_ROLE_KEY) {
-    SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRvY3VrcGpveXZqY2d6eWlpa2lvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MDAwNjY0NywiZXhwIjoyMDk1NTgyNjQ3fQ.2CEX_V5dc6S9V1pWu_9x5lrANtToBUotlu3-ENzKbwo";
-  }
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     const missing = [

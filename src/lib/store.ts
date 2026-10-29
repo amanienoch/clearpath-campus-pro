@@ -221,7 +221,10 @@ async function loadAll() {
   let obQueriesPromise: Promise<any[]> | null = null;
 
   if (isRegistrarOrAdmin) {
-    obPromise = import("./verify.functions").then(({ getRegistrarObligations }) => getRegistrarObligations());
+    obPromise = supabase.auth.getSession().then(({ data: sessionData }) => {
+      const token = sessionData.session?.access_token ?? "";
+      return import("./verify.functions").then(({ getRegistrarObligations }) => getRegistrarObligations({ data: token }));
+    });
   } else {
     const obQueries = {
       loans: supabase.from("library_loans").select("*"),

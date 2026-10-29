@@ -37,7 +37,7 @@ function validateUserInput(u: User) {
 export const secureUpsertUser = createServerFn({
   method: "POST",
 })
-  .inputValidator((data: AdminFnPayload<User>) => data)
+  .validator((data: AdminFnPayload<User>) => data)
   .handler(async ({ data: payload }: { data: AdminFnPayload<User> }) => {
     await requireAdmin(payload.accessToken);
     const u = payload.data;
@@ -109,7 +109,7 @@ export const secureUpsertUser = createServerFn({
 export const secureDeleteUser = createServerFn({
   method: "POST",
 })
-  .inputValidator((data: AdminFnPayload<string>) => data)
+  .validator((data: AdminFnPayload<string>) => data)
   .handler(async ({ data: payload }: { data: AdminFnPayload<string> }) => {
     await requireAdmin(payload.accessToken);
     const id = payload.data;

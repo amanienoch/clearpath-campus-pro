@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { GraduationCap, LogOut, Menu, Moon, Shield, ShieldCheck, Sun, X, PanelLeftClose, PanelLeftOpen, Bell, Search, Settings, Inbox, CheckCircle2, XCircle, Clock, BadgeCheck, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 
 interface NavItem { to: string; label: string; icon: ReactNode; }
@@ -46,6 +46,7 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
   const user = useAuthUser();
   const authReady = useAuthHydrated();
   const navigate = useNavigate();
+  const shouldReduceMotion = useReducedMotion() ?? false;
   const path = useRouterState({ select: (r) => r.location.pathname });
   const passwordChangeRequired = usePasswordChangeRequired();
   const [open, setOpen] = useState(false);
@@ -524,7 +525,7 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
   }, [showPalette, filteredItems, selectedIndex]);
 
   return (
-    <div className="min-h-screen flex bg-background text-foreground transition-colors duration-300">
+    <div className="app-shell min-h-screen flex bg-background text-foreground transition-colors duration-300">
       {/* Sidebar */}
       <aside
         className={cn(
@@ -536,7 +537,7 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
         <div className={cn("p-6 flex items-center shrink-0 border-b border-border/40 h-16 justify-between", isCollapsed ? "lg:justify-center px-4" : "gap-3")}>
           <div className="flex items-center gap-3">
             <div className="size-10 rounded-xl gradient-bg grid place-items-center shadow-glow shrink-0">
-              <ShieldCheck className="size-5 text-primary-foreground animate-pulse" />
+              <ShieldCheck className="size-5 text-primary-foreground" />
             </div>
             {!isCollapsed && (
               <div className="animate-fade-in truncate">
@@ -565,19 +566,16 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
                 to={item.to}
                 onClick={() => setOpen(false)}
                 title={isCollapsed ? item.label : undefined}
+                aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex items-center rounded-xl text-sm font-medium transition-all duration-200 relative overflow-hidden group/item h-11",
                   isCollapsed ? "justify-center p-3" : "gap-3 px-4 py-3",
                   active
-                    ? "bg-gradient-to-r from-primary/15 to-primary/5 text-primary font-semibold shadow-xs"
+                    ? "nav-item-active bg-gradient-to-r from-primary/15 to-primary/5 text-primary font-semibold shadow-xs"
                     : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
                 )}
               >
-                {/* Stripe/Linear style left indicator */}
-                {active && (
-                  <div className="absolute left-0 top-2.5 bottom-2.5 w-[3.5px] rounded-r bg-primary animate-fade-in shadow-[0_0_8px_var(--color-ring)]" />
-                )}
-                <div className={cn("size-5 shrink-0 flex items-center justify-center transition-transform group-hover/item:scale-105", active ? "text-primary animate-pulse" : "text-muted-foreground group-hover/item:text-foreground")}>
+                <div className={cn("size-5 shrink-0 flex items-center justify-center transition-transform group-hover/item:scale-105", active ? "text-primary" : "text-muted-foreground group-hover/item:text-foreground")}>
                   {item.icon}
                 </div>
                 {!isCollapsed && <span className="truncate transition-all duration-300">{item.label}</span>}
@@ -680,11 +678,11 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
                   size="icon"
                   className="relative rounded-full hover:bg-accent/40 size-9 flex items-center justify-center"
                   onClick={() => setShowNotifications(true)}
-                  aria-label="Notifications"
+                  aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
                 >
                   <Bell className="size-4.5 text-foreground/80 hover:text-foreground transition-colors" />
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground font-mono text-[9px] font-bold h-4 w-4 rounded-full flex items-center justify-center border border-background animate-pulse shadow-elegant">
+                    <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground font-mono text-[9px] font-bold h-4 w-4 rounded-full flex items-center justify-center border border-background shadow-sm">
                       {unreadCount}
                     </span>
                   )}
@@ -696,7 +694,7 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
                     <SheetHeader className="pb-4 border-b">
                       <div className="flex items-center justify-between">
                         <SheetTitle className="font-display font-semibold text-lg flex items-center gap-2">
-                          <Bell className="size-5 text-primary animate-pulse" /> Notifications
+                          <Bell className="size-5 text-primary" /> Notifications
                           {unreadCount > 0 && (
                             <span className="bg-primary text-primary-foreground font-mono text-[10px] font-bold px-2 py-0.5 rounded-full">
                               {unreadCount} unread
@@ -832,7 +830,7 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
             </div>
           </div>
         </header>
-        <main key={path} className="flex-1 px-4 sm:px-8 py-6 sm:py-10 max-w-7xl w-full mx-auto animate-fade-up">
+        <main key={path} className="flex-1 px-4 sm:px-8 py-6 sm:py-10 max-w-7xl w-full mx-auto animate-page-enter">
           {children}
         </main>
       </div>
@@ -842,18 +840,19 @@ export function AppShell({ nav, title, children, role }: { nav: NavItem[]; title
         {user?.role === "admin" && showPalette && (
           <>
             <motion.div
-              initial={{ opacity: 0 }}
+              initial={shouldReduceMotion ? false : { opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              exit={shouldReduceMotion ? undefined : { opacity: 0 }}
               onClick={() => { setShowPalette(false); setSearchQuery(""); }}
-              className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 transition-opacity"
+              transition={{ duration: shouldReduceMotion ? 0 : 0.15 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50"
             />
             <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] px-4 pointer-events-none">
               <motion.div
-                initial={{ opacity: 0, scale: 0.97, y: -10 }}
+                initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.97, y: -10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.97, y: -10 }}
-                transition={{ duration: 0.15 }}
+                exit={shouldReduceMotion ? undefined : { opacity: 0, scale: 0.97, y: -10 }}
+                transition={{ duration: shouldReduceMotion ? 0 : 0.15 }}
                 className="w-full max-w-lg bg-popover/95 border border-border shadow-2xl rounded-2xl overflow-hidden flex flex-col max-h-[420px] pointer-events-auto"
               >
                 {/* Search Bar Input Header */}

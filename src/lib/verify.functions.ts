@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { requireRegistrarOrAdmin } from "./server-auth";
 import { ClearanceStatus, Department } from "./types";
 
 export interface VerificationResult {
@@ -16,7 +17,7 @@ export interface VerificationResult {
 }
 
 export const verifyClearanceCertificate = createServerFn({ method: "POST" })
-  .inputValidator((data: string) => data)
+  .validator((data: string) => data)
   .handler(async ({ data: rawId }: { data: string }): Promise<VerificationResult> => {
     const clearanceId = rawId.trim().toUpperCase();
     if (!clearanceId) return { found: false, clearanceId: "" };
@@ -74,7 +75,7 @@ export const verifyClearanceCertificate = createServerFn({ method: "POST" })
   });
 
 export const resolveMatricToEmail = createServerFn({ method: "POST" })
-  .inputValidator((data: string) => data)
+  .validator((data: string) => data)
   .handler(async ({ data: matricNo }: { data: string }): Promise<string | null> => {
     const { data: profile } = await supabaseAdmin
       .from("profiles")
@@ -85,13 +86,10 @@ export const resolveMatricToEmail = createServerFn({ method: "POST" })
   });
 
 export const getRegistrarObligations = createServerFn({ method: "POST" })
-  .handler(async (): Promise<{
-    fees: any[];
-    loans: any[];
-    assets: any[];
-    hostel: any[];
-    sports: any[];
-  }> => {
+  .validator((data: string) => data)
+  .handler(async ({ data: accessToken }: { data: string }) => {
+    await requireRegistrarOrAdmin(accessToken);
+
     const [fees, loans, assets, hostel, sports] = await Promise.all([
       supabaseAdmin.from("fee_balances").select("*"),
       supabaseAdmin.from("library_loans").select("*"),
@@ -100,11 +98,15 @@ export const getRegistrarObligations = createServerFn({ method: "POST" })
       supabaseAdmin.from("sports_loans").select("*"),
     ]);
 
+    if (fees.error || loans.error || assets.error || hostel.error || sports.error) {
+      throw new Error("Unable to load registrar obligations");
+    }
+
     return {
-      fees: fees.data ?? [],
-      loans: loans.data ?? [],
-      assets: assets.data ?? [],
-      hostel: hostel.data ?? [],
-      sports: sports.data ?? [],
+      fees: fees.data,
+      loans: loans.data,
+      assets: assets.data,
+      hostel: hostel.data,
+      sports: sports.data,
     };
   });

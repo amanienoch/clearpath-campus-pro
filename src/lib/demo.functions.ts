@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { requireAdmin } from "./server-auth";
 
 const PROGRAMS = [
   "Computer Science",
@@ -27,8 +28,11 @@ function rand<T>(arr: T[]) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-export const generateDemoData = createServerFn({ method: "POST" }).handler(async () => {
-  // Idempotency: if any profile with matric_no starting with 122 exists, do not run
+export const generateDemoData = createServerFn({ method: "POST" })
+  .validator((data: string) => data)
+  .handler(async ({ data: accessToken }: { data: string }) => {
+    await requireAdmin(accessToken);
+    // Idempotency: if any profile with matric_no starting with 122 exists, do not run
   const { data: existing } = await supabaseAdmin.from("profiles").select("id").ilike("matric_no", "122%").limit(1);
   if (existing && existing.length > 0) return { seeded: false, reason: "already_seeded" };
 

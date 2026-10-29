@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { requireAdmin } from "./server-auth";
 
 type Dept = "Finance" | "Library" | "ICT" | "Registrar" | "Hostel" | "Sports";
 
@@ -36,8 +37,11 @@ const DEMOS: DemoUser[] = [
   { email: "admin@university.edu", password: "admin123", name: "Dr. Amaka Nwosu", role: "admin" },
 ];
 
-export const ensureSeed = createServerFn({ method: "POST" }).handler(async () => {
-  // Idempotency check
+export const ensureSeed = createServerFn({ method: "POST" })
+  .validator((data: string) => data)
+  .handler(async ({ data: accessToken }: { data: string }) => {
+    await requireAdmin(accessToken);
+    // Idempotency check
   const { data: existing } = await supabaseAdmin
     .from("profiles")
     .select("id")
