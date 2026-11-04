@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   LayoutDashboard, Users, BadgeCheck, FileCheck2, Clock, XCircle, TrendingUp,
-  Pencil, Trash2, Plus, Activity, BookOpen, Wallet, Laptop, Home, Trophy, Calendar, Check, AlertTriangle, Search,
+  Pencil, Trash2, Plus, Activity, BookOpen, Wallet, Laptop, Home, Trophy, Calendar, Check, AlertTriangle, Search, KeyRound,
   CheckCircle2, FileText, Inbox, ExternalLink
 } from "lucide-react";
 import {
@@ -34,6 +34,7 @@ import {
 import { toast } from "sonner";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
 import { NGN } from "@/lib/eligibility";
+import { isPasswordLongEnough, MIN_PASSWORD_LENGTH, passwordsMatch } from "@/lib/password-validation";
 
 export const Route = createFileRoute("/admin")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -634,6 +635,16 @@ function UsersTab({ users, search, setSearch, onSelectStudent }: { users: User[]
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<User | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
+  const [passwordTarget, setPasswordTarget] = useState<User | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [savingPassword, setSavingPassword] = useState(false);
+
+  const closePasswordDialog = () => {
+    setPasswordTarget(null);
+    setNewPassword("");
+    setConfirmPassword("");
+  };
 
   const startNew = () => {
     setEdit({ id: crypto.randomUUID(), name: "", email: "", role: "student", password: "" });
@@ -654,6 +665,29 @@ function UsersTab({ users, search, setSearch, onSelectStudent }: { users: User[]
       } finally {
         setDeleteTarget(null);
       }
+    }
+  };
+  const handleSetPassword = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!passwordTarget) return;
+    if (!isPasswordLongEnough(newPassword)) {
+      toast.error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      return;
+    }
+    if (!passwordsMatch(newPassword, confirmPassword)) {
+      toast.error("The passwords do not match.");
+      return;
+    }
+
+    setSavingPassword(true);
+    try {
+      await store.setUserPassword(passwordTarget.id, newPassword);
+      toast.success(`Password updated for ${passwordTarget.name}.`);
+      closePasswordDialog();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to update this user's password. Please try again.");
+    } finally {
+      setSavingPassword(false);
     }
   };
 
@@ -760,6 +794,18 @@ function UsersTab({ users, search, setSearch, onSelectStudent }: { users: User[]
                   <td className="px-4 py-3 text-muted-foreground font-semibold">{u.department ?? "—"}</td>
                   <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{u.admissionNumber ?? "—"}</td>
                   <td className="px-4 py-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setNewPassword("");
+                        setConfirmPassword("");
+                        setPasswordTarget(u);
+                      }}
+                      aria-label={`Set password for ${u.name}`}
+                    >
+                      <KeyRound className="size-3.5" /> Set Password
+                    </Button>
                     <Button size="sm" variant="ghost" onClick={() => startEdit(u)} aria-label={`Edit ${u.name}`}><Pencil className="size-3.5" /></Button>
                     <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(u)} aria-label={`Delete ${u.name}`}><Trash2 className="size-3.5 text-destructive" /></Button>
                   </td>
@@ -770,6 +816,55 @@ function UsersTab({ users, search, setSearch, onSelectStudent }: { users: User[]
         </div>
       </div>
       <UserDialog open={open} onClose={() => setOpen(false)} user={edit} />
+
+      <Dialog
+        open={!!passwordTarget}
+        onOpenChange={(isOpen) => {
+          if (!isOpen && !savingPassword) closePasswordDialog();
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-display font-semibold text-lg">
+              Set Password{passwordTarget ? ` for ${passwordTarget.name}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSetPassword} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="admin-new-password">New Password</Label>
+              <Input
+                id="admin-new-password"
+                type="password"
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                minLength={MIN_PASSWORD_LENGTH}
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="admin-confirm-password">Confirm Password</Label>
+              <Input
+                id="admin-confirm-password"
+                type="password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                minLength={MIN_PASSWORD_LENGTH}
+                required
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={closePasswordDialog} disabled={savingPassword}>
+                Cancel
+              </Button>
+              <Button type="submit" className="gradient-bg text-primary-foreground" disabled={savingPassword}>
+                {savingPassword ? "Saving…" : "Save Password"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
@@ -818,8 +913,8 @@ function UserDialog({ open, onClose, user }: { open: boolean; onClose: () => voi
     if (!isEditing && !draft.password) {
       return toast.error("Password is required for new users");
     }
-    if (draft.password && draft.password.length < 6) {
-      return toast.error("Password must be at least 6 characters");
+    if (draft.password && !isPasswordLongEnough(draft.password)) {
+      return toast.error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
     }
 
     if (draft.role === "student" && draft.admissionNumber && !/^\d+$/.test(draft.admissionNumber)) {
@@ -840,8 +935,7 @@ function UserDialog({ open, onClose, user }: { open: boolean; onClose: () => voi
       toast.success("User saved successfully");
       onClose();
     } catch (error) {
-      toast.error("Failed to save user");
-      console.error(error);
+      toast.error(error instanceof Error ? error.message : "Unable to save the user. Please try again.");
     }
   };
 
@@ -866,6 +960,8 @@ function UserDialog({ open, onClose, user }: { open: boolean; onClose: () => voi
               type="password" 
               value={draft.password} 
               placeholder={isEditing ? "••••••••" : "Enter password"}
+              minLength={MIN_PASSWORD_LENGTH}
+              autoComplete="new-password"
               onChange={(e) => setDraft({ ...draft, password: e.target.value })} 
             />
           </div>

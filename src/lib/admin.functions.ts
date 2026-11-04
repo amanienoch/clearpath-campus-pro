@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { isPasswordLongEnough, MIN_PASSWORD_LENGTH } from "./password-validation";
 import { User } from "./types";
 
 type AdminFnPayload<T> = {
@@ -29,9 +30,26 @@ function validateUserInput(u: User) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(u.email)) throw new Error("Valid email is required");
   if (!["student", "department", "admin"].includes(u.role)) throw new Error("Invalid role");
   if (u.role === "department" && !u.department) throw new Error("Department is required for department users");
-  if (!u.id && (!u.password || u.password.length < 6)) {
-    throw new Error("Password must be at least 6 characters for new users");
+  if (u.password && !isPasswordLongEnough(u.password)) {
+    throw new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
   }
+}
+
+function getAuthFailureMessage(error: { code?: string; message: string }, action: string): string {
+  const code = error.code?.toLowerCase();
+  if (
+    code === "weak_password" ||
+    /weak password|password.{0,30}(?:minimum|at least|too short)/i.test(error.message)
+  ) {
+    return `Password must be at least ${MIN_PASSWORD_LENGTH} characters and meet the configured password requirements.`;
+  }
+  if (code === "email_exists" || code === "user_already_exists") {
+    return "An account with this email already exists.";
+  }
+  if (code === "user_not_found") {
+    return "The selected account could not be found in Supabase Auth.";
+  }
+  return `Supabase Auth could not ${action} this account. Please try again or contact support.`;
 }
 
 export const secureUpsertUser = createServerFn({
@@ -45,23 +63,21 @@ export const secureUpsertUser = createServerFn({
     let uid = u.id;
 
     // Check if user exists in auth
-    const { data: list } = await supabaseAdmin.auth.admin.listUsers();
+    const { data: list, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+    if (listError || !list) {
+      throw new Error("Unable to verify the account in Supabase Auth. Please try again.");
+    }
     const existingAuthUser = list?.users.find((x) => x.email?.toLowerCase() === u.email.toLowerCase());
 
     if (existingAuthUser) {
       uid = existingAuthUser.id;
-      // Update password if provided
-      if (u.password && u.password.length >= 6) {
-        await supabaseAdmin.auth.admin.updateUserById(uid, {
-          password: u.password,
-          user_metadata: { name: u.name },
-        });
-      } else {
-        await supabaseAdmin.auth.admin.updateUserById(uid, {
-          user_metadata: { name: u.name },
-        });
-      }
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(uid, {
+        user_metadata: { name: u.name },
+        ...(u.password ? { password: u.password } : {}),
+      });
+      if (error) throw new Error(getAuthFailureMessage(error, "update"));
     } else {
+      if (!u.password) throw new Error("Password is required for new users.");
       // Create new user in auth
       const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
         email: u.email,
@@ -69,8 +85,8 @@ export const secureUpsertUser = createServerFn({
         email_confirm: true,
         user_metadata: { name: u.name },
       });
-      if (error) throw error;
-      if (!created?.user?.id) throw new Error("Failed to create user");
+      if (error) throw new Error(getAuthFailureMessage(error, "create"));
+      if (!created?.user?.id) throw new Error("Supabase Auth did not return the new account.");
       uid = created.user.id;
     }
 
@@ -86,15 +102,16 @@ export const secureUpsertUser = createServerFn({
       faculty: u.faculty ?? null,
       level: u.level ?? null,
     });
-    if (profileError) throw profileError;
+    if (profileError) throw new Error("Supabase Auth was updated, but the user profile could not be saved.");
 
     // And roles (delete existing roles first, then insert to ensure exactly one role)
-    await supabaseAdmin.from("user_roles").delete().eq("user_id", uid);
+    const { error: deleteRoleError } = await supabaseAdmin.from("user_roles").delete().eq("user_id", uid);
+    if (deleteRoleError) throw new Error("The user profile was saved, but the role could not be updated.");
     const { error: roleError } = await supabaseAdmin.from("user_roles").insert({
       user_id: uid,
       role: u.role,
     });
-    if (roleError) throw roleError;
+    if (roleError) throw new Error("The user profile was saved, but the role could not be updated.");
 
     // Activity
     await supabaseAdmin.from("activity_logs").insert({
@@ -125,5 +142,39 @@ export const secureDeleteUser = createServerFn({
       action: "deleted user",
       target: id,
     });
+    return { success: true };
+  });
+
+type SetUserPasswordPayload = {
+  accessToken: string;
+  userId: string;
+  password: string;
+};
+
+export const secureSetUserPassword = createServerFn({
+  method: "POST",
+})
+  .validator((data: SetUserPasswordPayload) => data)
+  .handler(async ({ data: payload }: { data: SetUserPasswordPayload }) => {
+    if (
+      !payload ||
+      typeof payload.accessToken !== "string" ||
+      typeof payload.userId !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(payload.userId) ||
+      typeof payload.password !== "string"
+    ) {
+      throw new Error("Invalid password update request");
+    }
+    if (!isPasswordLongEnough(payload.password)) {
+      throw new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+    }
+
+    await requireAdmin(payload.accessToken);
+
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(payload.userId, {
+      password: payload.password,
+    });
+    if (error) throw new Error(getAuthFailureMessage(error, "update"));
+
     return { success: true };
   });
